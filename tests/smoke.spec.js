@@ -58,3 +58,41 @@ test('анкета проходится до конца', async ({ page }, info)
   await expect(page.locator('#overlay')).toBeHidden();
   expect(errors).toEqual([]);
 });
+
+test('в тренировке можно сделать легче и заменить упражнение', async ({ page }, info) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await page.getByText('Пропустить').first().click();
+  const click = sel => page.evaluate(s => document.querySelector(s).click(), sel);
+  // первое занятие дня на «Сегодня», без отсчёта «Приготовьтесь»
+  await click('[data-act="go-s"]');
+  await page.waitForTimeout(400);
+  await click('[data-act="pl-skip"]');
+  await page.waitForTimeout(600);
+  const name = () => page.locator('#pname').textContent();
+  const before = await name();
+  if (await page.locator('[data-act="pl-easy"]').count()) {
+    await click('[data-act="pl-easy"]');
+    await page.waitForTimeout(400);
+    await expect(page.locator('.peasy')).toBeVisible();
+  }
+  await click('[data-act="pl-swap"]');
+  await page.waitForTimeout(500);
+  await expect(page.getByText('Заменить упражнение')).toBeVisible();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-swap.png` });
+  await click('.swi[data-act="pl-swap-to"]');
+  await page.waitForTimeout(600);
+  expect(await name()).not.toBe(before);
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-swapped.png` });
+  // выбор запомнился: в настройках есть строка, которая возвращает план как был
+  await click('[data-act="pl-x"]');
+  await page.waitForTimeout(300);
+  await click('[data-act="pl-end"]');
+  await page.waitForTimeout(800);
+  await click('[data-act="pl-close"]');
+  await tab(page, 'progress');
+  await click('.gearb');
+  await page.waitForTimeout(400);
+  await expect(page.locator('[data-act="adapt-reset"]')).toBeVisible();
+  expect(errors).toEqual([]);
+});

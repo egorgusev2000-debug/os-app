@@ -1864,12 +1864,12 @@ const dateLong = k => { const d = kd(k); return d.getDate() + ' ' + MONTHS[d.get
 const S = {
   v: 5, onb: 0, start: '', tier: 'b', places: Object.assign({}, PRESETS[1][2]), ovr: {}, week: { b: 1, a: 1, p: 1 },
   done: {}, owned: {}, log: [], xpArch: 0, zones: {}, focus: [], ach: {}, read: {}, habits: {}, tlog: {}, lday: null,
-  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null,
+  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {},
   set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1 }, updatedAt: 0
 };
 const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false, prefs: false, allAch: false, allTests: false };
 
-const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'set', 'updatedAt'];
+const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'swap', 'easier', 'set', 'updatedAt'];
 function persist() { const o = {}; PKEYS.forEach(k => { o[k] = S[k]; }); o.v = 5; return JSON.parse(JSON.stringify(o)); }
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 function apply(d) {
@@ -1877,7 +1877,7 @@ function apply(d) {
   if (TIERS[d.tier]) S.tier = d.tier;
   if (isObj(d.places)) { const p = {}; CATS.forEach(([c]) => { p[c] = PLACES[d.places[c]] ? d.places[c] : S.places[c]; }); S.places = p; }
   else if (d.format) { const m = { home: 'home', out: 'outdoor', gym: 'gym', mix: 'gymstr' }[d.format]; const pr = PRESETS.find(x => x[0] === m); if (pr) S.places = Object.assign({}, pr[2]); }
-  ['ovr', 'done', 'owned', 'zones', 'ach', 'read', 'habits', 'tlog'].forEach(k => { S[k] = isObj(d[k]) ? JSON.parse(JSON.stringify(d[k])) : {}; });
+  ['ovr', 'done', 'owned', 'zones', 'ach', 'read', 'habits', 'tlog', 'swap', 'easier'].forEach(k => { S[k] = isObj(d[k]) ? JSON.parse(JSON.stringify(d[k])) : {}; });
   S.week = Object.assign({ b: 1, a: 1, p: 1 }, isObj(d.week) ? d.week : {});
   S.log = Array.isArray(d.log) ? d.log.filter(x => isObj(x) && typeof x.d === 'string').slice(-LOG_MAX) : [];
   S.focus = Array.isArray(d.focus) ? d.focus.filter(z => ZM[z]) : [];
@@ -1983,6 +1983,12 @@ const PREG_SUB = {
   kegel_bridge: ['pelvic_floor', '10 × 5 с сидя'], legs_wall: null, wall_bridge: null, figure4: ['ninety_ninety', '10 переходов'], copenhagen: ['clamshell', '2×12 на сторону'], tgu: null,
   deadlift: ['hinge', '3×8, лёгкий вес'], nordic_curl: ['sl_rdl', '2×8 на ногу'], pullup: ['row', '3×10'], dips: ['pushup', '3×8, от опоры'], sauna: null, rucking: ['walking', '30–40 мин']
 };
+// «Заменить»: original id → chosen exercise; follows a chain of swaps without looping
+function swapId(id) {
+  const seen = new Set([id]);
+  while (S.swap[id] && EXM[S.swap[id]] && !seen.has(S.swap[id])) { id = S.swap[id]; seen.add(id); }
+  return id;
+}
 const lightDose = d => String(d).replace(/^(\d+)\s*×/, (m, n) => Math.max(1, Math.ceil(n / 2)) + '×');
 const isLight = () => S.light === today();
 const ZV0 = {};
@@ -1991,9 +1997,10 @@ function applyProfile() {
   const sub = preg ? Object.assign({}, JUMP_SUB, PREG_SUB) : post ? JUMP_SUB : null;
   Object.keys(SESS0).forEach(sid => {
     const s = Object.assign({}, SESS0[sid]);
-    let items = s.items.map(x => x.slice());
-    if (sub) items = items.map(([id, d]) => (id in sub ? (sub[id] ? sub[id].slice() : null) : [id, d])).filter(Boolean);
-    if (light) items = items.map(([id, d]) => (id === 'intervals_4x4' ? ['zone2', '20–30 мин спокойно'] : [id, lightDose(d)]));
+    // the user's own swaps go first («Заменить» in the player), then the pregnancy rules check the result
+    let items = s.items.map(([id, d]) => { const n = swapId(id); return n !== id && !s.items.some(x => x[0] === n) ? [n, EXM[n].dose, id] : [id, d]; });
+    if (sub) items = items.map(([id, d, o]) => (id in sub ? (sub[id] ? [sub[id][0], sub[id][1], o || id] : null) : [id, d, o])).filter(Boolean);
+    if (light) items = items.map(([id, d, o]) => (id === 'intervals_4x4' ? ['zone2', '20–30 мин спокойно', o || id] : [id, lightDose(d), o]));
     const seen = new Set();
     items = items.filter(([id]) => (seen.has(id) ? false : (seen.add(id), true)));
     s.items = items.length ? items : [['walking', '20–30 мин']];
@@ -2062,7 +2069,7 @@ function applySex() {
 function lessonOk(id) { const t = THEORY[id]; if (!t) return false; if (t.sx && t.sx !== (S.sex || 'm')) return false; if (t.x && !S.extra[t.x]) return false; return true; }
 const exOk = e => !e.x || !!S.extra[e.x];
 const doseText = (id, dose) => S.sex === 'f' && DOSE_F[id] ? dose + ', ' + DOSE_F[id] : dose;
-const doseItems = items => items.map(([id, d]) => [id, doseText(id, d)]);
+const doseItems = items => items.map(([id, d, o]) => [id, doseText(id, d), o || id]);
 
 /* ---------- zones ---------- */
 const zst = id => { const z = S.zones[id]; return z ? { step: z.step || 0, n: z.n || 0 } : { step: 0, n: 0 }; };
@@ -2222,6 +2229,15 @@ function parseDose(dose, e) {
   if (r.reps >= 40) { r.secs = Math.round(r.reps * 0.6); r.reps = 0; }
   return r;
 }
+// «Легче» in the player: fewer reps and seconds, one set less; remembered per exercise
+function easeDose(d) {
+  if (d.interval) { d.interval.n = Math.max(2, Math.round(d.interval.n * 0.6)); return d; }
+  if (d.sets > 2) d.sets--;
+  if (d.reps >= 3) d.reps = Math.max(2, Math.round(d.reps * 0.7));
+  if (d.secs) d.secs = Math.max(10, Math.round(d.secs * 0.7 / 5) * 5);
+  if (d.hold) d.hold = Math.max(3, Math.round(d.hold * 0.7));
+  return d;
+}
 function restsFor(e) { const k = e ? e.k : 'mob'; const set = { str: S.tier === 'b' ? 45 : 60, core: 30, act: 25, flow: 30, cardio: 30 }[k] || 15; return { set, ex: clamp(set, 10, 30) }; }
 // expand [id, dose] items into the steps the player walks through
 function buildBlocks(items) {
@@ -2231,6 +2247,7 @@ function buildBlocks(items) {
     if (!e) return;
     const def = MOVES[id] || null;
     const d = parseDose(dose || e.dose, e);
+    if (S.easier[id]) easeDose(d);
     const rs = restsFor(e);
     if (d.interval) {
       for (let i = 0; i < d.interval.n; i++) {
@@ -2267,6 +2284,8 @@ function estMin(items) {
 /* ---------- icons and small components ---------- */
 const IP = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  down: '<path d="M12 5v13M6.5 12.5L12 18l5.5-5.5"/>',
+  swap: '<path d="M4.5 8.5h14M15 5l3.5 3.5L15 12M19.5 15.5h-14M9 12l-3.5 3.5L9 19"/>',
   gear: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="6.6"/><path d="M12 2.6v2.8M12 18.6v2.8M2.6 12h2.8M18.6 12h2.8M5.4 5.4l2 2M16.6 16.6l2 2M5.4 18.6l2-2M16.6 7.4l2-2"/>',
   play: '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6.5" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.9" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/>',
@@ -2820,11 +2839,18 @@ function vProgress() {
     <button class="lrow" data-act="set" data-v="anat" role="switch" aria-checked="${S.set.anat ? 'true' : 'false'}"${S.set.gl ? '' : ' disabled'}><span>Анатомический режим<small>Фигура в виде мышц, работающие мышцы — красные. Работает с новой 3D-графикой</small></span><span class="toggle" aria-hidden="true"></span></button>
   </section>
   <div class="sec-h"><h2>Настройки тренировки</h2></div>
-  <section class="card rows">${[['voice', 'Голосовые подсказки', 'Название упражнения, отдых, «осталось 10 секунд»'], ['count', 'Счёт повторов вслух', 'Раз, два, три — в темпе фигуры'], ['sound', 'Звуковые сигналы', 'Короткий сигнал на 3, 2, 1 и в конце'], ['vib', 'Вибрация', 'Если телефон поддерживает']].map(([k, n, d]) => `<button class="lrow" data-act="set" data-v="${k}" role="switch" aria-checked="${S.set[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}</section>
+  <section class="card rows">${[['voice', 'Голосовые подсказки', 'Название упражнения, отдых, «осталось 10 секунд»'], ['count', 'Счёт повторов вслух', 'Раз, два, три — в темпе фигуры'], ['sound', 'Звуковые сигналы', 'Короткий сигнал на 3, 2, 1 и в конце'], ['vib', 'Вибрация', 'Если телефон поддерживает']].map(([k, n, d]) => `<button class="lrow" data-act="set" data-v="${k}" role="switch" aria-checked="${S.set[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}${adaptRow()}</section>
   <section class="card rows">
     <p class="small muted" id="syncline">${syncText()}</p>
     ${UI.resetAsk ? `<div class="confirm"><p>Удалить весь прогресс: отметки, серии, тесты и награды? Это нельзя отменить.</p><div class="acts"><button class="btn sm danger" data-act="reset-yes">Удалить</button><button class="btn sm ghost" data-act="reset-no">Отмена</button></div></div>` : `<button class="linkbtn danger-t" data-act="reset">Сбросить прогресс</button>`}
   </section>` : ''}`;
+}
+// swaps and «Легче» chosen in the player; one tap returns the plan as it was
+function adaptRow() {
+  const nS = Object.keys(S.swap).filter(k => EXM[k] && EXM[S.swap[k]]).length, nE = Object.keys(S.easier).filter(k => EXM[k]).length;
+  if (!nS && !nE) return '';
+  const parts = (nS ? [nS + ' ' + plural(nS, ['замена', 'замены', 'замен'])] : []).concat(nE ? [nE + ' ' + plural(nE, ['упражнение', 'упражнения', 'упражнений']) + ' легче'] : []);
+  return `<button class="lrow" data-act="adapt-reset"><span>Мои замены и «Легче»<small>${parts.join(', ')}. Нажмите, чтобы вернуть план как был</small></span>${ic('rotate')}</button>`;
 }
 function feelChart(list) {
   const W = 300, H = 70;
@@ -3249,6 +3275,7 @@ function speakDose(b) {
   return '';
 }
 const sideName = s => s === 0 ? 'Первая сторона' : s === 1 ? 'Вторая сторона' : '';
+const lc1 = x => x.charAt(0).toLowerCase() + x.slice(1);
 const cueList = e => e.how.concat((e.err || []).map(x => 'Частая ошибка: ' + x.charAt(0).toLowerCase() + x.slice(1)));
 const tempoTxt = () => String(PL.tempo).replace('.', ',') + '×';
 const iisOf = () => Array.from(new Set(PL.blocks.map(b => b.ii)));
@@ -3260,11 +3287,13 @@ function mainLabel(b) { return b.mode === 'reps' || b.mode === 'free' ? `${ic('c
 
 /* open / close */
 function openPlayer(meta, items, auto) {
+  // sessions already carry the swaps (applyProfile); zone steps get them here; a single exercise stays as chosen
+  if (meta.kind !== 'e') items = items.map(([id, d, o]) => { const n = swapId(id); return n !== id && !items.some(x => x[0] === n) ? [n, EXM[n].dose, o || id] : [id, d, o]; });
   items = doseItems(items);
   const blocks = buildBlocks(items);
   if (!blocks.length) { toast('Здесь нет упражнений для таймера'); return; }
   closeSheet();
-  Object.assign(PL, { open: true, blocks, items, i: 0, phase: 'start', meta, count: 0, done: new Set(), paused: false, result: null, said: {}, resumeAfterSheet: false });
+  Object.assign(PL, { open: true, blocks, items, src: items.map(x => x.slice()), i: 0, phase: 'start', meta, count: 0, done: new Set(), paused: false, result: null, said: {}, resumeAfterSheet: false });
   const el = document.getElementById('player');
   el.innerHTML = `<div class="pt" id="ptop"></div><div class="segs" id="psegs"></div><div class="pbody" id="pbody"></div><div class="pask" id="pask" hidden></div>`;
   el.hidden = false;
@@ -3339,6 +3368,75 @@ function plPrev() {
   if (PL.phase !== 'work') return;
   if (PT.el() < 3 && PL.i > 0) PL.i--;
   plWork();
+}
+/* «Легче» and «Заменить»: change the current exercise and remember the choice for the plan */
+function plRebuild(keep) {
+  const b = PL.blocks[PL.i];
+  PL.blocks = buildBlocks(PL.items);
+  const same = PL.blocks.filter(x => x.ii === b.ii);
+  const at = keep ? same.find(x => x.set === b.set && x.side === b.side) || same[same.length - 1] : same[0];
+  PL.i = Math.max(0, PL.blocks.indexOf(at));
+  plWork();
+}
+function plEasy() {
+  const b = PL.blocks[PL.i];
+  if (!b || PL.phase !== 'work' || !b.e.easy) return;
+  if (S.easier[b.id]) delete S.easier[b.id]; else S.easier[b.id] = 1;
+  commit();
+  plRebuild(true);
+  if (S.easier[b.id]) say('Лёгкий вариант. ' + b.e.easy);
+  toast(S.easier[b.id] ? 'Легче — запомнили' : 'Обычная нагрузка');
+}
+// strength swaps only for strength; activation and core mix; mobility, relaxation and flows mix
+const KGRP = k => k === 'act' || k === 'core' ? 'a' : k === 'mob' || k === 'rel' || k === 'flow' ? 'm' : k;
+const FREE_EQ = ['mat', 'towel', 'steps'];
+function plPlace() {
+  const m = PL.meta;
+  if (m.kind !== 's' || !SESS[m.sid]) return 'home';
+  if (m.key) { const k = m.key.split('|'); return placeOf(k[0], Number(k[2]), m.sid); }
+  return S.places[SESS[m.sid].c] || 'home';
+}
+// only what the user has: owned items, weights, the street bar, the gym
+const eqOk = (e, place) => eqFor(e, place).every(q => FREE_EQ.includes(q) || S.owned[q] || (S.gear.weights && (q === 'kb' || q === 'kb2')) || (S.gear.bars && q === 'bar') || (q === 'gym' && (S.gear.gym || place === 'gym')));
+// similar exercises: same group (strength/mobility/cardio), a shared zone, open tier, allowed for pregnancy and after birth
+function swapCands(cur, orig) {
+  const e = EXM[cur], f = S.sex === 'f';
+  const ban = f && S.stage === 'preg' ? Object.assign({}, JUMP_SUB, PREG_SUB) : f && S.stage === 'post' ? JUMP_SUB : {};
+  const used = new Set(PL.items.map(x => x[0])), place = plPlace(), ez = e.z || [];
+  return EX.filter(c => !used.has(c.id) && c.id !== orig && !(c.id in ban) && exOk(c) && KGRP(c.k) === KGRP(e.k) && c.k !== 'habit' && TORD[c.t] <= TORD[S.tier] && eqOk(c, place))
+    .map(c => { const zs = (c.z || []).filter(z => ez.includes(z)); return { c, zs, sc: (c.k === e.k ? 3 : 0) + zs.length * 2 + (c.t === e.t ? 1 : 0) + (MOVES[c.id] ? 1 : 0) }; })
+    .filter(x => x.zs.length || (!ez.length && x.c.k === e.k))
+    .sort((a, b) => b.sc - a.sc).slice(0, 8);
+}
+function openSwap() {
+  const b = PL.blocks[PL.i];
+  if (!b || PL.phase !== 'work') return;
+  const orig = PL.items[b.ii][2] || b.id, e = b.e, list = swapCands(b.id, orig);
+  const row = (id, title, sub, tag) => `<button class="swi" data-act="pl-swap-to" data-v="${id}">${thumb(id)}<span class="swt"><b>${esc(title)}</b><small>${esc(sub)}</small></span>${tag ? `<span class="tg">${tag}</span>` : ''}</button>`;
+  const back = orig !== b.id && EXM[orig] ? row(orig, 'Вернуть: ' + EXM[orig].n, 'Как было в плане', '') : '';
+  const rows = list.map(({ c, zs }) => {
+    const zn = zs.map(z => ZM[z] ? ZM[z].n.toLowerCase() : '').filter(Boolean).slice(0, 2).join(', ');
+    const tag = c.lv && e.lv ? (c.lv < e.lv ? 'проще' : c.lv > e.lv ? 'сложнее' : '') : '';
+    return row(c.id, c.n, (KIND[c.k] || '') + (zn ? ' · ' + zn : ''), tag);
+  }).join('');
+  PL.resumeAfterSheet = !PL.paused; plSetPause(true);
+  openSheet(sheetHead('Заменить упражнение', `<p class="small muted">Вместо «${esc(e.n)}». Похожие по зоне и сложности, только с вашим инвентарём.</p>`) +
+    (back || rows ? `<div class="swl">${back}${rows}</div><p class="small muted">Выбор запомним: дальше в плане будет новое упражнение. Вернуть можно здесь же.</p>`
+      : `<p>Похожих упражнений под ваш инвентарь нет. Можно нажать «Легче» или пропустить упражнение кнопкой справа внизу.</p>`));
+}
+function plSwapTo(id) {
+  const b = PL.blocks[PL.i];
+  if (!b || !EXM[id]) return;
+  const it = PL.items[b.ii], orig = it[2] || it[0];
+  if (id === orig) delete S.swap[orig]; else S.swap[orig] = id;
+  applyProfile();
+  commit();
+  const plan = PL.meta.kind === 's' && SESS[PL.meta.sid] ? SESS[PL.meta.sid].items.find(x => (x[2] || x[0]) === orig) : null;
+  const src = PL.src.find(x => (x[2] || x[0]) === orig);
+  const dose = plan && plan[0] === id ? doseText(id, plan[1]) : src && src[0] === id ? src[1] : doseText(id, EXM[id].dose);
+  PL.items[b.ii] = [id, dose, orig];
+  plRebuild(false);
+  toast(id === orig ? 'Вернули как было' : 'Заменили и запомнили');
 }
 function plSetPause(v) {
   PL.paused = v; PT.pause(v); AT.pause(v);
@@ -3508,7 +3606,7 @@ function plStartHtml() {
   const kindL = meta.kind === 'z' ? 'Комплекс для зоны' : meta.kind === 'e' ? 'Одно упражнение' : (SESS[meta.sid] && SESS[meta.sid].c === 'morning' ? 'Зарядка' : 'Тренировка');
   return `<div class="pstart">
     <div class="ps-h"><div class="lbl2">${kindL}</div><h2>${esc(meta.title)}</h2><p>${items.length} ${plural(items.length, ['упражнение', 'упражнения', 'упражнений'])}, около ${estMin(PL.items)} мин</p></div>
-    <div class="pl">${items.map(([id, dose]) => `<button class="pli" data-act="ex" data-v="${id}" data-dose="${esc(dose || EXM[id].dose)}"><span class="thumb">${fig(id)}</span><span class="pli-t"><b>${esc(EXM[id].n)}</b><small>${esc(dose || EXM[id].dose)}</small></span>${ic('info')}</button>`).join('')}</div>
+    <div class="pl">${items.map(([id, dose, o]) => `<button class="pli" data-act="ex" data-v="${id}" data-dose="${esc(dose || EXM[id].dose)}"><span class="thumb">${fig(id)}</span><span class="pli-t"><b>${esc(EXM[id].n)}</b><small>${esc(dose || EXM[id].dose)}${S.easier[id] ? ', легче' : ''}</small>${o && o !== id && EXM[o] ? `<small class="pl-sw">вместо «${esc(EXM[o].n)}»</small>` : ''}</span>${ic('info')}</button>`).join('')}</div>
     <p class="ps-note">Повторы считаются по циклам фигуры. Если не успеваете, поставьте паузу или нажмите «Готово», когда закончите. Нажмите на упражнение, чтобы посмотреть технику.</p>
     ${meta.kind === 's' && meta.key && !S.done[meta.key] ? `<button class="ps-mark" data-act="pl-mark">Уже сделали без таймера? Отметить выполненным</button>` : ''}
     <button class="go" data-act="pl-begin">${ic('play')}Начать</button>
@@ -3535,8 +3633,8 @@ function plWorkHtml() {
   else if (b.mode === 'hold') ctr = `<div class="tring hold">${pring()}<div class="inner"><b id="phold">Держите</b><div class="big num" id="ptime">${b.hold}</div><span id="prep" class="num">Повтор 1 из ${b.reps}</span></div></div>`;
   else ctr = `<div class="counter"><div class="big num" id="ptime">0:00</div><div class="sub">${esc(b.label)}</div></div>`;
   return `<div class="pmid">
-    <div class="stage pstage"><canvas id="pcv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas>${b.side !== null ? `<span class="pside">${sideName(b.side)}</span>` : ''}${nx ? `<span class="pnext">${MOVES[nx.id] ? `<canvas class="tcv" data-ex="${nx.id}"></canvas>` : ''}<span>Дальше: ${esc(nx.e.n)}</span></span>` : ''}<button class="ptech" data-act="pl-tech">${ic('info')}Техника</button></div>
-    <div class="pinfo"><div class="pnum num">${iis.indexOf(b.ii) + 1} из ${iis.length}</div><h2 id="pname">${esc(e.n)}</h2><div class="pd">${esc(line)}</div>${extra && extra.toLowerCase() !== line.toLowerCase() ? `<div class="pd2">${esc(extra)}</div>` : ''}</div>
+    <div class="stage pstage"><canvas id="pcv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas>${b.side !== null ? `<span class="pside">${sideName(b.side)}</span>` : ''}${nx ? `<span class="pnext">${MOVES[nx.id] ? `<canvas class="tcv" data-ex="${nx.id}"></canvas>` : ''}<span>Дальше: ${esc(nx.e.n)}</span></span>` : ''}<button class="ptech" data-act="pl-tech">${ic('info')}Техника</button>${PL.meta.kind !== 'e' || e.easy ? `<span class="padapt">${e.easy ? `<button data-act="pl-easy" aria-pressed="${!!S.easier[b.id]}">${ic(S.easier[b.id] ? 'check' : 'down')}Легче</button>` : ''}${PL.meta.kind !== 'e' ? `<button data-act="pl-swap">${ic('swap')}Заменить</button>` : ''}</span>` : ''}</div>
+    <div class="pinfo"><div class="pnum num">${iis.indexOf(b.ii) + 1} из ${iis.length}</div><h2 id="pname">${esc(e.n)}</h2><div class="pd">${esc(line)}</div>${S.easier[b.id] && e.easy ? `<div class="pd2 peasy">Лёгкий вариант: ${esc(lc1(e.easy))}</div>` : extra && extra.toLowerCase() !== line.toLowerCase() ? `<div class="pd2">${esc(extra)}</div>` : ''}</div>
     <div class="cue" id="pcue" aria-live="polite">${esc(cueList(e)[0] || '')}</div>
   </div>
   <div class="pbot">${ctr}<div class="pctl"><button class="side" data-act="pl-prev" aria-label="Назад">${ic('prev')}</button><button class="main" data-act="pl-main" id="pmain">${mainLabel(b)}</button><button class="side" data-act="pl-next" aria-label="Пропустить">${ic('next')}</button></div></div>`;
@@ -3774,6 +3872,10 @@ document.addEventListener('click', ev => {
     case 'pl-add': PL.restDur += 15; setText('prt', fmtTime(PL.restDur - PT.el())); break;
     case 'pl-tempo': PL.tempo = PL.tempo === 1 ? 0.75 : PL.tempo === 0.75 ? 1.25 : 1; b.textContent = tempoTxt(); if (PL.m) PL.m.setSpeed(PL.tempo); break;
     case 'pl-snd': { const on = !(S.set.voice || S.set.sound); S.set.voice = on ? 1 : 0; S.set.sound = on ? 1 : 0; commit(); if (on) audioInit(); else hush(); b.innerHTML = ic(on ? 'sound' : 'mute'); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', on ? 'Выключить звук и голос' : 'Включить звук и голос'); break; }
+    case 'pl-easy': plEasy(); break;
+    case 'adapt-reset': S.swap = {}; S.easier = {}; applyProfile(); commit(); render(); toast('План как был'); break;
+    case 'pl-swap': openSwap(); break;
+    case 'pl-swap-to': closeSheet(); plSwapTo(v); break;
     case 'pl-tech': { const bl = PL.blocks[PL.i]; if (!bl) break; PL.resumeAfterSheet = !PL.paused; plSetPause(true); openEx(bl.id, bl.label); break; }
     case 'pl-mark': { const m = PL.meta; toggleDone(m.key, m.sid, true); plExit(); toast('Отмечено: ' + m.title); break; }
     case 'pl-feel': if (PL.result && PL.result.entry) { PL.result.entry.f = Number(v); pressOne(b, 'button'); } break;
