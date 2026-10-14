@@ -146,7 +146,9 @@ uniform vec3 uCol; uniform vec3 uCol2; uniform float uSplit; uniform int uMode;
 uniform vec3 uEye; uniform vec3 uL1; uniform vec3 uL2; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uGlow;
 uniform float uAlpha; uniform float uShine; uniform float uWrap; uniform float uGlowAmt;
 uniform vec4 uMus[12]; uniform vec4 uMusD[12]; uniform int uNM2;
+uniform int uLook; uniform vec3 uRim; uniform float uDarkBg;
 out vec4 frag;
+vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   vec3 base = uCol;
   if (uMode == 1) base = vT < uSplit ? uCol2 : uCol;
@@ -158,6 +160,13 @@ void main() {
     bool top = vCl.x > 0.0 && vCl.y > 0.0;
     bool bot = !top && vCl.z > 0.0 && vCl.y <= 0.0;
     if (uAnat == 1) base = vLm.y < -1.5 ? uSkin : uCol;
+    else if (uLook > 0) {
+      // soft clothing edges: blend across the seam instead of a stepped cut along the triangles
+      vec2 w = max(fwidth(vCl.xy), vec2(0.02)) * 1.5;
+      float wTop = smoothstep(-w.x, w.x, vCl.x) * smoothstep(-w.y, w.y, vCl.y);
+      float wBot = (1.0 - wTop) * smoothstep(-w.x, w.x, vCl.z) * (1.0 - smoothstep(-w.y, w.y, vCl.y));
+      base = mix(mix(uSkin, uCol2, wBot), uCol, wTop);
+    }
     else base = top ? uCol : (bot ? uCol2 : uSkin);
     if (vCl.w != 0.0) { if (vCl.w < 0.0) discard; base = uHair; }
     fq = vLm.xy; ften = vLm.zw; fon = uAnat == 1 ? 1.0 : 0.0;
@@ -180,6 +189,31 @@ void main() {
   float sp = pow(max(dot(N, H), 0.0), 34.0) * uShine;
   float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
   vec3 c = base * (hemi * 0.5 + d1 * 0.98 + d2 * 0.22) + sp + fr * 0.16 * uSky;
+  if (uLook == 1) {
+    // studio: warm key, cool fill, rim light along the outline, light passing through skin at the shadow edge
+    float isSkin = uMode == 4 ? step(0.5, 1.0 - step(0.001, distance(base, uSkin))) : 0.0;
+    float k = max(0.0, dot(N, uL1));
+    float kw = max(0.0, (dot(N, uL1) + 0.45) / 1.45);
+    vec3 key = vec3(1.0, 0.95, 0.88) * mix(k, kw, isSkin);
+    vec3 fill = vec3(0.70, 0.78, 0.90) * max(0.0, dot(N, uL2)) * 0.35;
+    vec3 amb = hemi * 0.42;
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 2.6) * max(0.0, dot(N, uRim) + 0.35);
+    vec3 sss = vec3(0.85, 0.28, 0.16) * isSkin * (kw - k) * 0.55;
+    float spec = pow(max(dot(N, H), 0.0), mix(18.0, 46.0, isSkin)) * mix(0.05, 0.16, isSkin);
+    c = base * (amb + key * 1.05 + fill + sss) + spec + rim * mix(vec3(0.95, 0.97, 1.0), uSky, 0.4) * mix(0.30, 0.55, uDarkBg);
+    c *= 1.0 + 0.12 * vR;
+    c *= mix(0.80, 1.0, smoothstep(0.0, 18.0, vW.y));
+  } else if (uLook == 2) {
+    // clean sculpture: one matte material, soft light, bright outline
+    float lum = dot(base, vec3(0.3, 0.55, 0.15));
+    vec3 clay = mix(vec3(lum), base, 0.18);
+    clay = mix(clay * 1.25, clay * 0.9, step(0.001, distance(base, uSkin)) * 0.6);
+    float kw = max(0.0, (dot(N, uL1) + 0.6) / 1.6);
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 2.4);
+    c = clay * (hemi * 0.55 + kw * 0.85 + max(0.0, dot(N, uL2)) * 0.18) + rim * mix(0.22, 0.45, uDarkBg) * vec3(0.92, 0.96, 1.0);
+    c *= 1.0 + 0.16 * vR;
+    c *= mix(0.78, 1.0, smoothstep(0.0, 18.0, vW.y));
+  }
   c *= mix(0.74, 1.0, smoothstep(0.0, 14.0, vW.y));
   // muscle tops a little lighter, grooves between muscles a little darker
   c *= 1.0 + (uAnat == 1 ? 0.2 : 0.11) * vR;
@@ -202,6 +236,7 @@ void main() {
     g = clamp(g * uGlowAmt, 0.0, 0.85);
     c = mix(c, uGlow * (0.72 + 0.28 * d1), g * 0.72) + uGlow * g * 0.1;
   }
+  if (uLook > 0) c = aces(c * 1.15);
   c = pow(max(c, 0.0), vec3(1.0 / 2.2));
   frag = vec4(c * uAlpha, uAlpha);
 }`;
@@ -404,6 +439,9 @@ void main() {
   }
   function mmul(a, b) { const o = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; o[i * 4 + j] = s; } return o; }
   const colMajor3 = F => [F[0], F[3], F[6], F[1], F[4], F[7], F[2], F[5], F[8]];
+
+  // figure look: 0 classic, 1 studio, 2 clean sculpture (window.OS3_LOOK while we compare)
+  const LOOK = () => (typeof window !== 'undefined' && window.OS3_LOOK) | 0;
 
   /* ---------- motion: follow-through and breathing ---------- */
   const LAG = ['hd', 'nk', 'eL', 'eR', 'wL', 'wR'];
@@ -631,6 +669,7 @@ void main() {
       const L1 = norm(add(add(mul(cam.right, -0.55), mul(cam.up, 0.85)), mul(cam.dir, 0.7)));
       const L2 = norm(add(add(mul(cam.right, 0.7), mul(cam.up, 0.25)), mul(cam.dir, -0.35)));
       const Ls = norm(add(add(mul(cam.right, -0.22), [0, 1, 0]), mul(cam.dir, 0.18)));
+      const Lr = norm(add(add(mul(cam.right, 0.6), mul(cam.up, 0.45)), mul(cam.dir, 1.0)));
       const dark = P.dark ? 1 : 0;
       const sky = dark ? [0.42, 0.46, 0.5] : [0.92, 0.95, 0.97], ground = dark ? [0.16, 0.15, 0.14] : [0.42, 0.38, 0.35];
       gl.enable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.CULL_FACE);
@@ -676,6 +715,7 @@ void main() {
         gl.uniform3fv(g.u.uEye, cam.eye); gl.uniform3fv(g.u.uL1, L1); gl.uniform3fv(g.u.uL2, L2);
         gl.uniform3fv(g.u.uSky, sky); gl.uniform3fv(g.u.uGround, ground); gl.uniform3fv(g.u.uGlow, P.glow);
         gl.uniform1f(g.u.uAlpha, alpha); gl.uniform1f(g.u.uWrap, 0.32);
+        gl.uniform1i(g.u.uLook, LOOK()); gl.uniform3fv(g.u.uRim, Lr); gl.uniform1f(g.u.uDarkBg, dark);
         gl.uniform4fv(g.u.uMus, MU); gl.uniform4fv(g.u.uMusD, MD); gl.uniform4fv(g.u.uMusX, MX); gl.uniform1i(g.u.uNM2, mus.length);
         gl.uniform1f(g.u.uGlowAmt, anat ? 0.6 + 0.4 * (s.a || 0) : 0.35 + 0.65 * (s.a || 0));
         gl.uniform1i(g.u.uAnat, anat ? 1 : 0); gl.uniform3fv(g.u.uHot, AN.hot); gl.uniform3fv(g.u.uTend, AN.ten);
