@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EDF2EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D1210" media="(prefers-color-scheme: dark)">
+<title>Ось: тело и питание</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Unbounded:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/nutrition.css">
+</head>
+<body>
+<div class="app" id="app" data-tier="b">
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">Ось<i>.</i></div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </header>
+  <main class="wrap" id="main"></main>
+  <nav class="tabbar" aria-label="Разделы">
+    <div class="wrap" id="tabs"></div>
+  </nav>
+  <div class="scrim" id="scrim" hidden></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden></section>
+  <section class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="ov-title" hidden></section>
+  <section class="player" id="player" role="dialog" aria-modal="true" aria-label="Тренировка" hidden></section>
+  <div id="toasts"></div>
+</div>
+
+<!-- Порядок важен: обычные (не модульные) скрипты делят одну глобальную область видимости. -->
+<script src="src/data/body-male.js"></script>
+<script src="src/engine/mannequin.js"></script>
+<script src="src/engine/poses.js"></script>
+<script src="src/animations/core.js"></script>
+<script src="src/animations/standing.js"></script>
+<script src="src/animations/lying.js"></script>
+<script src="src/animations/all-fours.js"></script>
+<script src="src/animations/seated.js"></script>
+<script src="src/animations/sequences.js"></script>
+<script src="src/animations/qigong.js"></script>
+<script src="src/engine/body-builder.js"></script>
+<script src="src/engine/rig.js"></script>
+<script src="src/engine/webgl.js"></script>
+<script src="src/data/course.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

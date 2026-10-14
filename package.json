@@ -1,0 +1,16 @@
+{
+  "name": "os-app",
+  "version": "0.5.2",
+  "private": true,
+  "description": "Ось: тело и питание — курс упражнений и питание в одном приложении",
+  "scripts": {
+    "start": "serve -l 5173 .",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "body:rest": "node tools/glb-to-engine/dump-engine-rest.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "serve": "^14.2.4"
+  }
+}

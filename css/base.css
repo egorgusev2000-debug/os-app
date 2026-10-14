@@ -1,0 +1,4 @@
+/* Базовые правила страницы: скрытые элементы (атрибут hidden) не должны перехватывать нажатия. */
+[hidden]:not([hidden=until-found i]) { display: none !important; }
+html, body { margin: 0; padding: 0; }
+img { max-width: 100%; }
