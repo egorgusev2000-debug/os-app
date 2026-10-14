@@ -84,11 +84,11 @@
     },
     squat: {
       cam: { yaw: -52, pitch: 8 }, m: ['quads', 'glutes', 'adductors'], props: [{ t: 'kb2h', off: [0, -6, 0] }],
-      kf: rep(P(SW, GOBLET), P(PZ.SQUAT, Object.assign({}, GOBLET, { aL: null, aR: null })), { up: 1000, down: 2400, ha: 300 })
+      kf: rep(P(SW, GOBLET), P(PZ.SQUAT, Object.assign({}, GOBLET, { aL: null, aR: null })), { ab: 2400, ba: 1000, ha: 300, hb: 250 })
     },
     hinge: {
       cam: { yaw: -80, pitch: 6 }, m: ['hams', 'glutes', 'erectors'], props: [{ t: 'kb', hand: 'both' }],
-      kf: rep(P(ST, { aL: [2, 6, 0, 0], aR: [2, 6, 0, 0], eL: 4, eR: 4 }), P(ST, { r: [0, 93, -17], o: [0, 68, 0], nk: [-22, 0, 0], aL: [68, 6, 0, 0], aR: [68, 6, 0, 0], eL: 4, eR: 4 }), { up: 1100, down: 2400 })
+      kf: rep(P(ST, { aL: [2, 6, 0, 0], aR: [2, 6, 0, 0], eL: 4, eR: 4 }), P(ST, { r: [0, 93, -17], o: [0, 68, 0], nk: [-22, 0, 0], aL: [68, 6, 0, 0], aR: [68, 6, 0, 0], eL: 4, eR: 4 }), { ab: 2400, ba: 1100, ha: 200, hb: 250 })
     },
     row: {
       cam: { yaw: -60, pitch: 8 }, m: ['lats', 'rhomboids', 'biceps'], props: [{ t: 'band', from: [0, 101, 135], to: 'hands' }],
@@ -120,7 +120,7 @@
     },
     lunge: {
       cam: { yaw: -70, pitch: 8 }, side: true, m: ['quads', 'glutes'],
-      kf: rep(P(S0, { aL: [2, 10, 0, 0], aR: [2, 10, 0, 0] }), P(S0, { r: [0, 57, -20], FL: ft(10, 19, { p: [0, 0, 1] }), FR: toes(-10, -60, 10, { p: [0, -0.4, 1] }), aL: [8, 10, 0, 0], aR: [8, 10, 0, 0] }), { up: 1100, down: 1700 })
+      kf: rep(P(S0, { aL: [2, 10, 0, 0], aR: [2, 10, 0, 0] }), P(S0, { r: [0, 57, -20], FL: ft(10, 19, { p: [0, 0, 1] }), FR: toes(-10, -60, 10, { p: [0, -0.4, 1] }), aL: [8, 10, 0, 0], aR: [8, 10, 0, 0] }), { ab: 1700, ba: 1100, ha: 200, hb: 250 })
     },
     cossack: {
       cam: { yaw: 8, pitch: 10 }, m: ['adductors', 'glutes', 'quads'],
@@ -130,7 +130,7 @@
     bss: {
       cam: { yaw: -72, pitch: 8 }, side: true, m: ['quads', 'glutes'], props: [{ t: 'bench', x0: -22, x1: 6, z0: -82, z1: -44, h: 45 }],
       kf: rep(P(S0, { r: [0, 93, -12], FL: ft(10, 22, { p: [0, 0, 1] }), FR: { t: [-10, 54, -60], ft: 150, p: [0, -0.3, 1] }, o: [0, 6, 0] }),
-        P(S0, { r: [0, 60, -16], o: [0, 14, 0], FL: ft(10, 22, { p: [0, 0, 1] }), FR: { t: [-10, 54, -60], ft: 150, p: [0, -0.5, 1] } }), { up: 1000, down: 1800 })
+        P(S0, { r: [0, 60, -16], o: [0, 14, 0], FL: ft(10, 22, { p: [0, 0, 1] }), FR: { t: [-10, 54, -60], ft: 150, p: [0, -0.5, 1] } }), { ab: 1800, ba: 1000, ha: 200, hb: 250 })
     },
     deadlift: {
       cam: { yaw: -75, pitch: 6 }, m: ['glutes', 'hams', 'erectors'], props: [{ t: 'kb2h', off: [0, -6, 0], r: 11 }],
@@ -163,12 +163,17 @@
     neck_iso: {
       cam: { yaw: 30, pitch: 4 }, focus: 'upper', m: ['neckFlex', 'neckExt'],
       kf: (() => {
-        const down = (s) => ({ t: [s * 22, -62, 0], rel: 'H', p: [s, 0, -0.5] });
+        const down = (s) => ({ t: [s * 22, -62, 0], rel: 'H', p: [s, -1, -0.5] });
         const front = { HL: { t: [3, 4, 11], rel: 'H', p: [1, -0.6, 0.4], d: [-0.3, 0.4, -0.8] }, HR: { t: [-3, 4, 11], rel: 'H', p: [-1, -0.6, 0.4], d: [0.3, 0.4, -0.8] } };
         const back = { HL: { t: [4, 2, -10], rel: 'H', p: [1, 0.5, 0], d: [-0.6, 0.3, 0.6] }, HR: { t: [-4, 2, -10], rel: 'H', p: [-1, 0.5, 0], d: [0.6, 0.3, 0.6] } };
-        const left = { HL: { t: [9.5, 2, 1], rel: 'H', p: [1, -0.6, 0], d: [0, 1, 0] }, HR: down(-1) };
-        const right = { HR: { t: [-9.5, 2, 1], rel: 'H', p: [-1, -0.6, 0], d: [0, 1, 0] }, HL: down(1) };
-        return [front, back, left, right].map(h => ({ p: P(ST, h), d: 900, h: 1300, a: 1 }));
+        const left = { HL: { t: [9.5, 2, 1], rel: 'H', p: [1, -1, 0], d: [0, 1, 0] }, HR: down(-1) };
+        const right = { HR: { t: [-9.5, 2, 1], rel: 'H', p: [-1, -1, 0], d: [0, 1, 0] }, HL: down(1) };
+        // a hand travelling between the head and the hip goes round the outside of the shoulder, not through it
+        const out = (s) => ({ t: [s * 34, -24, 12], rel: 'H', p: [s, -1, 0], d: [0, 1, 0] });
+        const press = h => ({ p: P(ST, h), d: 900, h: 1300, a: 1 });
+        const via = h => ({ p: P(ST, h), d: 500, a: 0.4 });
+        return [press(front), Object.assign(press(back), { d: 500 }), via({ HL: left.HL, HR: out(-1) }), Object.assign(press(left), { d: 500 }), via({ HL: out(1), HR: out(-1) }),
+          Object.assign(press(right), { d: 500 }), via({ HL: out(1), HR: right.HR })];
       })()
     },
     hinge_drill: {
@@ -179,7 +184,7 @@
     sl_rdl: {
       cam: { yaw: -78, pitch: 6 }, side: true, m: ['hams', 'glutes'], props: [{ t: 'kb', hand: 'R' }],
       kf: rep(P(ST, { FR: null, lR: [0, 3, 0, 0], kR: 4, aR: [2, 6, 0, 0], eR: 4, aL: [2, 20, 0, 0] }),
-        P(ST, { FR: null, r: [0, 95, -10], o: [0, 74, 0], nk: [-22, 0, 0], lR: [-4, 2, 0, 0], kR: 4, fR: 10, aR: [74, 6, 0, 0], eR: 4, aL: [60, 35, 0, 0], eL: 10, FL: ft(10, 0, { p: [0, 0, 1] }) }), { up: 1100, down: 1900 })
+        P(ST, { FR: null, r: [0, 95, -10], o: [0, 74, 0], nk: [-22, 0, 0], lR: [-4, 2, 0, 0], kR: 4, fR: 10, aR: [74, 6, 0, 0], eR: 4, aL: [60, 35, 0, 0], eL: 10, FL: ft(10, 0, { p: [0, 0, 1] }) }), { ab: 1900, ba: 1100, ha: 200, hb: 250 })
     },
     one_arm_row: {
       cam: { yaw: -60, pitch: 10 }, side: true, m: ['lats', 'rhomboids'], props: [{ t: 'kb', hand: 'R' }],

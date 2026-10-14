@@ -205,6 +205,19 @@ const OS3D = (function () {
     def._pr = { def, kfs, total, tmpl: kfs[0].p };
     return def._pr;
   }
+  // speed (per ms) of every value at keyframe k: zero when the pose is held (or the move is a plain back-and-forth),
+  // otherwise the slope between its neighbours
+  function tangent(pr, k) {
+    pr.tan = pr.tan || [];
+    if (pr.tan[k]) return pr.tan[k];
+    const { kfs } = pr, n = kfs.length, K = kfs[k];
+    const ip = (k - 1 + n) % n, P = kfs[ip], N = kfs[(k + 1) % n];
+    const zero = n < 3 || K.h > 0;
+    const span = P.d + K.d;
+    const m = K.v.map((x, q) => zero ? 0 : (N.v[q] - P.v[q]) / span);
+    pr.tan[k] = m;
+    return m;
+  }
   function sample(pr, ms) {
     const { kfs, total } = pr;
     const n = kfs.length;
@@ -222,9 +235,12 @@ const OS3D = (function () {
     const A = kfs[i].v, Bv = kfs[j].v;
     let v;
     if (pr.def.ease === 'cr') {
-      const P = kfs[(i - 1 + n) % n].v, Q = kfs[(j + 1) % n].v;
+      // cubic Hermite with tangents that respect each segment's duration; a pose with a pause (or a turn-back)
+      // gets zero speed, so the body slows into it and starts out of it gently instead of arriving at full speed
+      const d = kfs[i].d, mA = tangent(pr, i), mB = tangent(pr, j);
       const t2 = raw * raw, t3 = t2 * raw;
-      v = A.map((a, q) => 0.5 * ((2 * a) + (-P[q] + Bv[q]) * raw + (2 * P[q] - 5 * a + 4 * Bv[q] - Q[q]) * t2 + (-P[q] + 3 * a - 3 * Bv[q] + Q[q]) * t3));
+      const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + raw, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+      v = A.map((a, q) => h00 * a + h10 * d * mA[q] + h01 * Bv[q] + h11 * d * mB[q]);
     } else {
       const k = pr.def.ease === 'lin' ? raw : 0.5 - 0.5 * Math.cos(Math.PI * raw);
       v = A.map((a, q) => a + (Bv[q] - a) * k);

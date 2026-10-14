@@ -70,10 +70,11 @@ const PZ = (function () {
     const b2 = P(p, Object.assign({ ch, sL, sR }, o.in || {}));
     return [{ p: b, d: o.d || 1800, a: o.a1 === undefined ? 0.75 : o.a1 }, { p: b2, d: o.d || 1800, a: o.a2 === undefined ? 0.95 : o.a2 }];
   }
-  // A -> B -> A with optional pauses
+  // A -> B -> A with optional pauses. ab: time A -> B, ba: time B -> A (old names: up = ab, down = ba).
   function rep(A, B, o) {
     o = o || {};
-    return [{ p: A, d: o.up || 900, h: o.ha || 0, a: o.aA === undefined ? 0.35 : o.aA }, { p: B, d: o.down || 900, h: o.hb || 0, a: o.aB === undefined ? 1 : o.aB }];
+    const ab = o.ab || o.up || 900, ba = o.ba || o.down || 900;
+    return [{ p: A, d: ab, h: o.ha || 0, a: o.aA === undefined ? 0.35 : o.aA }, { p: B, d: ba, h: o.hb || 0, a: o.aB === undefined ? 1 : o.aB }];
   }
   // A -> L -> A -> mirror(L)
   function alt(A, L, o) {

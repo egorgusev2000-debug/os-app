@@ -7,18 +7,20 @@
   const TABLE = { lL: [90, 2, 0, 0], lR: [90, 2, 0, 0], kL: 90, kR: 90, fL: 20, fR: 20 };
   const FLAT_LEGS = { FL: { t: [9, 6, 87], ft: -72, p: [0, 1, 0] }, FR: { t: [-9, 6, 87], ft: -72, p: [0, 1, 0] } };
   const BACK_ARMS = { aL: [0, 14, 0, 0], aR: [0, 14, 0, 0], eL: 4, eR: 4 };
+  // palms flat on the floor beside the hips: they stay put while the pelvis lifts (bridges)
+  const FLOOR_ARMS = { HL: hd(28, 3, 6, { d: [0.1, 0, 1], p: [1, -0.4, 0] }), HR: hd(-28, 3, 6, { d: [-0.1, 0, 1], p: [-1, -0.4, 0] }) };
   const HEAD_HANDS = { HL: { t: [6, 1, -10], rel: 'H', p: [1, 0.3, 0.2], d: [-0.7, 0.2, 0.3] }, HR: { t: [-6, 1, -10], rel: 'H', p: [-1, 0.3, 0.2], d: [0.7, 0.2, 0.3] } };
 
   Object.assign(MOVES, {
-    glute_bridge: lie({ cam: camL, m: ['glutes', 'hams'], kf: rep(P(HK, BACK_ARMS), P(HK, Object.assign({ o: [0, -117, 0] }, BACK_ARMS)), { up: 1100, down: 1700, hb: 1200 }) }),
-    kegel_bridge: lie({ cam: camL3, m: ['pelvicFloor', 'glutes'], kf: rep(P(HK, BACK_ARMS), P(HK, Object.assign({ o: [0, -114, 0] }, BACK_ARMS)), { up: 1300, down: 1800, hb: 2200, ha: 600 }) }),
+    glute_bridge: lie({ cam: camL, m: ['glutes', 'hams'], kf: rep(P(HK, FLOOR_ARMS), P(HK, Object.assign({ o: [0, -117, 0] }, FLOOR_ARMS)), { up: 1100, down: 1700, hb: 1200 }) }),
+    kegel_bridge: lie({ cam: camL3, m: ['pelvicFloor', 'glutes'], kf: rep(P(HK, FLOOR_ARMS), P(HK, Object.assign({ o: [0, -114, 0] }, FLOOR_ARMS)), { up: 1300, down: 1800, hb: 2200, ha: 600 }) }),
     pil_shoulder_bridge: lie({
       cam: camL, side: true, m: ['glutes', 'hams', 'abs'],
       kf: [
-        { p: P(HK, Object.assign({ o: [0, -116, 0] }, BACK_ARMS)), d: 900, a: 0.6 },
-        { p: P(HK, Object.assign({ o: [0, -116, 0], FR: { t: [-10, 112, 22], ft: 45, p: [0, 0, 1] } }, BACK_ARMS)), d: 900, a: 1 },
-        { p: P(HK, Object.assign({ o: [0, -116, 0], FR: { t: [-10, 44, 86], ft: 30, p: [0, 1, 0] } }, BACK_ARMS)), d: 900, a: 1 },
-        { p: P(HK, Object.assign({ o: [0, -116, 0], FR: { t: [-10, 112, 22], ft: 45, p: [0, 0, 1] } }, BACK_ARMS)), d: 900, a: 1 }
+        { p: P(HK, Object.assign({ o: [0, -116, 0] }, FLOOR_ARMS)), d: 900, a: 0.6 },
+        { p: P(HK, Object.assign({ o: [0, -116, 0], FR: { t: [-10, 95, 18], ft: 45, p: [0, 0.2, -1] } }, FLOOR_ARMS)), d: 900, a: 1 },
+        { p: P(HK, Object.assign({ o: [0, -116, 0], FR: { t: [-10, 44, 86], ft: 30, p: [0, 1, 0] } }, FLOOR_ARMS)), d: 900, a: 1 },
+        { p: P(HK, Object.assign({ o: [0, -116, 0], FR: { t: [-10, 95, 18], ft: 45, p: [0, 0.2, -1] } }, FLOOR_ARMS)), d: 900, a: 1 }
       ]
     }),
     dead_bug: lie({
