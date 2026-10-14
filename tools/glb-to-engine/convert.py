@@ -157,6 +157,30 @@ for k in range(4):
         m = maps.get(jn) or maps['pelvis']
         out[sel] += Wn[sel, k:k + 1] * apply_map(m, Pw[sel])
         bw[sel, m[-1]] += Wn[sel, k]
+# hips: the back of the buttocks stays with the pelvis (MakeHuman ties much of it to the thigh, so in a deep squat a lump
+# of buttock swings out with the thigh); a short smoothing pass blends the new border
+import os as _os
+GLUTE = float(_os.environ.get('GLUTE_KEEP', '0.7'))
+if GLUTE > 0:
+    hipy, hipz = sk['HL'][1], sk['HL'][2]
+    back = np.clip((hipz - 2.0 - out[:, 2]) / 7.0, 0, 1)
+    upper = np.clip((out[:, 1] - (hipy - 20.0)) / 10.0, 0, 1)
+    side = np.clip((22.0 - np.abs(out[:, 0])) / 6.0, 0, 1)
+    k = GLUTE * back * upper * side
+    pel = BONE['pelvis']
+    for th_ in (BONE['thL'], BONE['thR']):
+        moved = bw[:, th_] * k
+        bw[:, th_] -= moved; bw[:, pel] += moved
+    ni = np.concatenate([T[:, 0], T[:, 1], T[:, 2], T[:, 1], T[:, 2], T[:, 0]])
+    nj = np.concatenate([T[:, 1], T[:, 2], T[:, 0], T[:, 0], T[:, 1], T[:, 2]])
+    dg = np.maximum(np.bincount(ni, minlength=nv), 1).astype(float)
+    ch = [pel, BONE['thL'], BONE['thR']]
+    reg = (k > 0.01) | (np.bincount(ni, weights=(k[nj] > 0.01).astype(float), minlength=nv) > 0)
+    sub = bw[:, ch].copy(); tot = sub.sum(1, keepdims=True)
+    for _ in range(int(_os.environ.get('GLUTE_SMOOTH', '8'))):
+        avg = np.stack([np.bincount(ni, weights=sub[nj, c], minlength=nv) for c in range(3)], 1) / dg[:, None]
+        sub = np.where(reg[:, None], 0.5 * sub + 0.5 * avg, sub)
+    bw[:, ch] = sub / np.maximum(sub.sum(1, keepdims=True), 1e-9) * tot
 order = np.argsort(-bw, 1)[:, :4]
 BI = order.astype(np.float32)
 BWt = np.take_along_axis(bw, order, 1); BWt /= BWt.sum(1, keepdims=True)

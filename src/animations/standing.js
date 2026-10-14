@@ -5,7 +5,8 @@
   const ST = PZ.STAND, SW = PZ.STANDW;
   const HIPS = { HL: { t: [16, 5, -2], rel: 'P', p: [1, 0, -0.8], d: [0, -0.4, 1] }, HR: { t: [-16, 5, -2], rel: 'P', p: [-1, 0, -0.8], d: [0, -0.4, 1] } };
   const PRAY = { HL: { t: [2, -16, 19], rel: 'T', p: [1, -0.7, 0], d: [0, 1, 0.2] }, HR: { t: [-2, -16, 19], rel: 'T', p: [-1, -0.7, 0], d: [0, 1, 0.2] } };
-  const GOBLET = { HL: { t: [4, -15, 20], rel: 'T', p: [1, -1, 0.2], d: [-0.6, 0.6, 0.3] }, HR: { t: [-4, -15, 20], rel: 'T', p: [-1, -1, 0.2], d: [0.6, 0.6, 0.3] } };
+  // goblet hold: palms on the sides of the kettlebell at chest height, elbows down
+  const GOBLET = { HL: { t: [11, -21, 15], rel: 'T', p: [1, -1.2, -0.3], d: [-0.15, 0.85, 0.5] }, HR: { t: [-11, -21, 15], rel: 'T', p: [-1, -1.2, -0.3], d: [0.15, 0.85, 0.5] } };
   const cam3 = { yaw: 35, pitch: 8 }, camSide = { yaw: -70, pitch: 8 };
 
   Object.assign(MOVES, {
@@ -83,8 +84,8 @@
       kf: hold(P(PZ.SQUAT, Object.assign({ aL: null, aR: null }, PRAY)))
     },
     squat: {
-      cam: { yaw: -52, pitch: 8 }, m: ['quads', 'glutes', 'adductors'], props: [{ t: 'kb2h', off: [0, -6, 0] }],
-      kf: rep(P(SW, GOBLET), P(PZ.SQUAT, Object.assign({}, GOBLET, { aL: null, aR: null })), { ab: 2400, ba: 1000, ha: 300, hb: 250 })
+      cam: { yaw: -52, pitch: 8 }, m: ['quads', 'glutes', 'adductors'], props: [{ t: 'kb2h', at: 'palms', off: [0, 0, 1.5], r: 8.5 }],
+      kf: rep(P(SW, GOBLET), P(PZ.SQUAT, Object.assign({}, GOBLET, { aL: null, aR: null, o: [0, 36, 0], sp: [0, 0, 0], ch: [0, 0, 0], nk: [-24, 0, 0] })), { ab: 2400, ba: 1000, ha: 300, hb: 250 })
     },
     hinge: {
       cam: { yaw: -80, pitch: 6 }, m: ['hams', 'glutes', 'erectors'], props: [{ t: 'kb', hand: 'both' }],

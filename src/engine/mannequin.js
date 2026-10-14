@@ -438,7 +438,9 @@ const OS3D = (function () {
           break;
         }
         case 'kb2h': { // one kettlebell held with both hands
-          const c = add(mul(add(sk.TL, sk.TR), 0.5), pp.off || [0, -8, 0]);
+          // between the fingertips (held by the handle) or between the palms (goblet hold)
+          const mid = pp.at === 'palms' ? mul(add(add(sk.WL, sk.TL), add(sk.WR, sk.TR)), 0.25) : mul(add(sk.TL, sk.TR), 0.5);
+          const c = add(mid, pp.off || [0, -8, 0]);
           out.push({ k: 'sph', c, r: pp.r || 9, col: 'kb', id: 'kb2h' });
           break;
         }
