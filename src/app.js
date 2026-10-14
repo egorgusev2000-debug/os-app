@@ -1867,7 +1867,7 @@ const S = {
   sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null,
   set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1 }, updatedAt: 0
 };
-const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false };
+const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false, prefs: false, allAch: false, allTests: false };
 
 const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'set', 'updatedAt'];
 function persist() { const o = {}; PKEYS.forEach(k => { o[k] = S[k]; }); o.v = 5; return JSON.parse(JSON.stringify(o)); }
@@ -2255,6 +2255,8 @@ function blockSec(b) {
   if (b.mode === 'reps') return b.reps * (b.def ? clamp(cycleSec(b.def), 1.5, 12) : 3);
   return 45;
 }
+// minutes of a session as the player will run it (same doses, rests and the easy-day changes)
+const sessMin = s => `${estMin(doseItems(s.items))} мин`;
 function estMin(items) {
   const bl = buildBlocks(items);
   let s = 0;
@@ -2265,6 +2267,7 @@ function estMin(items) {
 /* ---------- icons and small components ---------- */
 const IP = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="6.6"/><path d="M12 2.6v2.8M12 18.6v2.8M2.6 12h2.8M18.6 12h2.8M5.4 5.4l2 2M16.6 16.6l2 2M5.4 18.6l2-2M16.6 7.4l2-2"/>',
   play: '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6.5" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.9" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/>',
   prev: '<path d="M18 6v12L9 12z" fill="currentColor" stroke="none"/><path d="M6.5 6v12"/>',
@@ -2440,7 +2443,7 @@ function vToday() {
     const place = PLACES[placeOf(S.tier, tp.day, nx.sid)];
     hero = `<section class="card hero">
       <div class="stage hs"><canvas id="hero-cv" aria-hidden="true"></canvas>
-        <div class="over"><span class="tag" id="hero-ex"></span><span class="tag">${esc(nx.s.min)}</span></div></div>
+        <div class="over"><span class="tag" id="hero-ex"></span><span class="tag">${sessMin(nx.s)}</span></div></div>
       <div class="hb">
         <div><div class="lbl">${nx.s.c === 'morning' ? 'Зарядка' : 'Тренировка дня'}</div><h1 class="h1">${esc(nx.s.n)}</h1></div>
         <div class="meta"><span class="tag">${nx.s.items.length} ${plural(nx.s.items.length, ['упражнение', 'упражнения', 'упражнений'])}</span><span class="tag">${ic('pin')}${esc(place)}</span></div>
@@ -2454,7 +2457,7 @@ function vToday() {
   }
   const rows = tp.list.map(x => {
     const isNext = nx && x.key === nx.key;
-    return `<button class="srow" data-act="open-s" data-v="${x.key}~${x.sid}" data-done="${x.done ? 1 : 0}" data-next="${isNext ? 1 : 0}"><span class="st">${x.done ? ic('check') : ''}</span><span><b>${esc(x.s.n)}</b><small>${x.s.c === 'morning' ? 'Зарядка, ' : ''}${esc(x.s.min)}</small></span><span class="go">${x.done ? 'Готово' : ic('chev')}</span></button>`;
+    return `<button class="srow" data-act="open-s" data-v="${x.key}~${x.sid}" data-done="${x.done ? 1 : 0}" data-next="${isNext ? 1 : 0}"><span class="st">${x.done ? ic('check') : ''}</span><span><b>${esc(x.s.n)}</b><small>${x.s.c === 'morning' ? 'Зарядка, ' : ''}${sessMin(x.s)}</small></span><span class="go">${x.done ? 'Готово' : ic('chev')}</span></button>`;
   }).join('');
   const stText = st.streak ? `Серия ${st.streak} ${plural(st.streak, ['день', 'дня', 'дней'])} подряд${st.activeToday ? '' : '. Позанимайтесь сегодня, чтобы не прервать'}` : 'Начните серию сегодня';
   const lastWeek = tp.week >= t.weeks;
@@ -2560,7 +2563,7 @@ function sessCard(sid, week, day) {
   const ids = s.items.map(x => x[0]);
   const shown = ids.slice(0, 4);
   return `<article class="card sess" data-done="${done ? 1 : 0}">
-    <div class="sh"><button class="sh-t" data-act="open-s" data-v="${key}~${sid}"><b>${esc(s.n)}</b><small>${s.c === 'morning' ? 'Зарядка, ' : ''}${esc(s.min)}, ${ids.length} упр.</small></button>
+    <div class="sh"><button class="sh-t" data-act="open-s" data-v="${key}~${sid}"><b>${esc(s.n)}</b><small>${s.c === 'morning' ? 'Зарядка, ' : ''}${sessMin(s)}, ${ids.length} упр.</small></button>
     <button class="check" data-act="done" data-v="${key}~${sid}" aria-pressed="${done}" aria-label="Отметить «${esc(s.n)}» выполненным">${ic('check')}</button></div>
     <button class="thumbs" data-act="open-s" data-v="${key}~${sid}" aria-label="Состав: ${esc(s.n)}">${shown.map(id => thumb(id)).join('')}${ids.length > 4 ? `<span class="morep">+${ids.length - 4}</span>` : ''}</button>
     <div class="sf"><button class="place" data-act="pick" data-v="${ok}" data-ovr="${isOvr ? 1 : 0}" aria-label="Место: ${PLACES[place]}. Изменить для этого дня">${ic('pin')}${PLACES[place]}</button><span class="grow"></span><button class="btn sm" data-act="go-s" data-v="${key}~${sid}">${ic('play')}Начать</button></div>
@@ -2722,7 +2725,8 @@ function vProgress() {
     heat += '</div>';
   }
   const feel = S.log.filter(e => e.f).slice(-20);
-  const tests = TESTS.map(T => {
+  const tested = TESTS.filter(T => (S.tlog[T.id] || []).length).length;
+  const tests = (UI.allTests ? TESTS : TESTS.slice(0, 3)).map(T => {
     const a = S.tlog[T.id] || [];
     const last = a[a.length - 1];
     let delta = '';
@@ -2730,8 +2734,9 @@ function vProgress() {
     return `<button class="test" data-act="test" data-v="${T.id}"><span><b>${esc(T.n)}</b><span class="small muted">${last ? 'Последний: ' + dateLong(last.d) : 'Ещё не проходили'}</span></span><span class="tv">${last ? `${last.v}<small> ${esc(T.unit)}</small>` : `<span class="linkbtn">Пройти</span>`}${delta ? '<br>' + delta : ''}</span>${spark(a, T.better)}</button>`;
   }).join('');
   const achN = ACH.filter(a => S.ach[a[0]]).length;
+  const achShow = UI.allAch ? ACH : ACH.filter(a => S.ach[a[0]]).concat(ACH.filter(a => !S.ach[a[0]]).slice(0, 3));
   const lessonsAll = Object.keys(THEORY).length;
-  return `<section class="card lvl">${spineSvg(st.lvl)}
+  return `<section class="card lvl"><button class="iconbtn gearb" data-act="prefs" aria-label="Настройки и профиль">${ic('gear')}</button>${spineSvg(st.lvl)}
     <div><div class="lbl">Ваш уровень</div><div class="ln">${esc(lvlTitle(st.lvl))}</div><p class="ls">${esc(lvlRegion(st.lvl))}</p>
       <div class="bar xpbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
       <p class="small muted num">${st.lvl < 25 ? `${st.xp - lo} из ${hi - lo} XP до ${esc(VERT[st.lvl])}` : `${st.xp} XP`}</p>
@@ -2743,15 +2748,18 @@ function vProgress() {
   <div class="sec-h"><h2>Зоны</h2><button class="lnk" data-act="tab" data-v="body">Карта тела</button></div>
   <section class="card zprog">${ZL.map(z => { const s = zst(z.id); return `<button class="zp" data-act="zone" data-v="${z.id}"><span>${esc(z.n)}</span>${steps5(z.id)}<span class="small muted num">${s.step + 1}/${z.steps.length}</span></button>`; }).join('')}</section>
   <div class="sec-h"><h2>Тесты</h2><span class="small muted">раз в 2–4 недели</span></div>
-  <section class="card tests">${tests}</section>
+  <section class="card tests">${tested ? '' : '<p class="small muted tintro">Тесты показывают, как меняется тело. Первый займёт пару минут.</p>'}${tests}${TESTS.length > 3 ? `<button class="linkbtn more" data-act="more" data-v="allTests">${UI.allTests ? 'Свернуть' : `Все тесты (${TESTS.length})`}</button>` : ''}</section>
   ${feel.length >= 2 ? `<section class="card"><div class="sec-h tight"><h2 class="h3">Самочувствие после тренировок</h2><span class="small muted">последние ${feel.length}</span></div>${feelChart(feel)}</section>` : ''}
   <div class="sec-h"><h2>Награды</h2><span class="small muted num">${achN} из ${ACH.length}</span></div>
-  <div class="ach">${ACH.map(a => `<button class="badge" data-act="ach" data-v="${a[0]}" data-on="${S.ach[a[0]] ? 1 : 0}"><span class="bi">${ic(S.ach[a[0]] ? a[3] : 'lock')}</span>${esc(a[1])}</button>`).join('')}</div>
+  <div class="ach">${achShow.map(a => `<button class="badge" data-act="ach" data-v="${a[0]}" data-on="${S.ach[a[0]] ? 1 : 0}"><span class="bi">${ic(S.ach[a[0]] ? a[3] : 'lock')}</span>${esc(a[1])}</button>`).join('')}</div>
+  ${ACH.length > achShow.length || UI.allAch ? `<button class="linkbtn more" data-act="more" data-v="allAch">${UI.allAch ? 'Свернуть' : `Все награды (${ACH.length})`}</button>` : ''}
   <section class="card rows">
     <button class="lrow" data-act="lessons"><span>Уроки<small>Прочитано ${Object.keys(S.read).length} из ${lessonsAll}</small></span>${ic('chev')}</button>
     <button class="lrow" data-act="lit"><span>Литература и исследования<small>${LIT.length} источников, на которых построен курс</small></span>${ic('chev')}</button>
     <button class="lrow" data-act="equip"><span>Инвентарь<small>Что нужно для вашего плана</small></span>${ic('chev')}</button>
   </section>
+  <section class="card rows"><button class="lrow" data-act="prefs" aria-expanded="${UI.prefs ? 'true' : 'false'}"><span class="gl">${ic('gear')}Настройки и профиль<small>Пол, возраст, голос, звук, графика, сохранение</small></span>${ic('chev')}</button></section>
+  ${UI.prefs ? `<div id="prefs"></div>
   <div class="sec-h"><h2>Профиль</h2></div>
   <section class="card rows">
     <div class="prow"><span>Кто занимается</span><div class="seg3" role="group" aria-label="Кто занимается"><button data-act="sex" data-v="m" aria-pressed="${S.sex !== 'f'}">Мужчина</button><button data-act="sex" data-v="f" aria-pressed="${S.sex === 'f'}">Женщина</button></div></div>
@@ -2767,7 +2775,7 @@ function vProgress() {
   <section class="card rows">
     <p class="small muted" id="syncline">${syncText()}</p>
     ${UI.resetAsk ? `<div class="confirm"><p>Удалить весь прогресс: отметки, серии, тесты и награды? Это нельзя отменить.</p><div class="acts"><button class="btn sm danger" data-act="reset-yes">Удалить</button><button class="btn sm ghost" data-act="reset-no">Отмена</button></div></div>` : `<button class="linkbtn danger-t" data-act="reset">Сбросить прогресс</button>`}
-  </section>`;
+  </section>` : ''}`;
 }
 function feelChart(list) {
   const W = 300, H = 70;
@@ -3442,7 +3450,8 @@ function plWorkHtml() {
   const b = PL.blocks[PL.i], e = b.e, iis = iisOf();
   const nx = PL.blocks.slice(PL.i + 1).find(x => x.ii !== b.ii);
   const line = blockLine(b);
-  const extra = /[а-яё]/i.test(b.label) && b.mode !== 'free' && !b.phase ? b.label : '';
+  // the dose text, unless it only repeats the count already shown («8 раз» next to «8 повторов»)
+  const extra = /[а-яё]/i.test(b.label) && b.mode !== 'free' && !b.phase && !/^\s*\d+\s*(раз|повтор[а-я]*)\s*$/i.test(b.label) ? b.label : '';
   let ctr;
   if (b.mode === 'reps') ctr = `<div class="counter"><div class="big num" id="pcount">0<small>/${b.reps}</small></div><div class="sub">повторов в темпе фигуры</div><div class="sub num" id="ptime2">0:00</div></div>`;
   else if (b.mode === 'time') ctr = `<div class="tring${b.secs >= 600 ? ' long' : ''}">${pring()}<div class="inner"><div class="big num" id="ptime">${fmtTime(b.secs)}</div></div></div>`;
@@ -3640,6 +3649,8 @@ document.addEventListener('click', ev => {
     case 'test': openTest(v); break;
     case 'ach': openAch(v); break;
     case 'xpinfo': openXpInfo(); break;
+    case 'prefs': UI.prefs = !UI.prefs || b.classList.contains('gearb'); render(); if (UI.prefs) { const el = document.getElementById('prefs'); if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); } break;
+    case 'more': UI[v] = !UI[v]; render(); break;
     case 'lessons': openOv('lessons'); break;
     case 'lit': openOv('lit'); break;
     case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' || v === 'anat') setTimeout(render, 220); break;
