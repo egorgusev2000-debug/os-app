@@ -2532,25 +2532,29 @@ function vToday() {
     office,
     S.focus.length ? '' : focus
   ].filter(Boolean);
-  return `<div class="hello"><h1 class="h2">${greet()}</h1><p class="muted">${esc(dayStr)}</p></div>
+  return `<div class="split"><div class="col">
+  <div class="hello"><h1 class="h2">${greet()}</h1><p class="muted">${esc(dayStr)}</p></div>
   ${hero}
   <section class="card lightcard">${lightRow}</section>
   ${pregNote}
+  <section class="card weekcard">
+    <div class="ring">${ring(wc.done, wc.total, 32, 7)}<div class="rv">${tp.week}<small>неделя</small></div></div>
+    <div><b class="h3">Неделя ${tp.week} из ${t.weeks}</b><div class="small muted">${weekText}</div><div class="small muted">${stText}</div>${st.lvl < 25 ? `<div class="small muted">До уровня ${esc(VERT[st.lvl])}: ${lvlXP(st.lvl + 1) - st.xp} XP</div>` : ''}
+      <div class="wdays">${DAYS.map((n, i) => { const v = dayStatus(S.tier, tp.week, i); return `<div class="wd" data-v="${v}"${i === tp.day ? ' data-today="1"' : ''}><i>${v === 'all' ? ic('check') : ''}</i>${n}</div>`; }).join('')}</div>
+    </div>${weekTip}
+  </section>
+  </div><div class="col">
   ${dayRings()}
   <section class="slist" id="sl" aria-label="План на сегодня">${rows}</section>
   <section class="card" id="habcard"><div class="sec-h tight"><h2 class="h3">Привычки дня</h2><span class="small muted" id="hab-n">${Object.keys(hd).length} из ${hab.length}</span></div>
     <div class="habits">${hab.map(([h], i) => `<button class="hrow" data-act="habit" data-v="${i}" aria-pressed="${hd[i] ? 'true' : 'false'}"><span class="box">${ic('check')}</span><span>${esc(h)}</span><span class="xp">+5</span></button>`).join('')}</div>
   </section>
   ${gutCard()}
+  </div></div>
   ${S.focus.length ? focus : ''}
   <div class="sec-h"><h2>Ещё сегодня</h2></div>
   <div class="hscroll">${more.join('')}</div>
-  <section class="card weekcard">
-    <div class="ring">${ring(wc.done, wc.total, 32, 7)}<div class="rv">${tp.week}<small>неделя</small></div></div>
-    <div><b class="h3">Неделя ${tp.week} из ${t.weeks}</b><div class="small muted">${weekText}</div><div class="small muted">${stText}</div>${st.lvl < 25 ? `<div class="small muted">До уровня ${esc(VERT[st.lvl])}: ${lvlXP(st.lvl + 1) - st.xp} XP</div>` : ''}
-      <div class="wdays">${DAYS.map((n, i) => { const v = dayStatus(S.tier, tp.week, i); return `<div class="wd" data-v="${v}"${i === tp.day ? ' data-today="1"' : ''}><i>${v === 'all' ? ic('check') : ''}</i>${n}</div>`; }).join('')}</div>
-    </div>${weekTip}
-  </section>`;
+`;
 }
 // three rings of the day: movement (today's sessions), nutrition (today's checklist), habits
 function dayRings() {
@@ -2605,21 +2609,22 @@ function vPlan() {
   const d = weekOf(S.tier)[day], sess = sessionsFor(S.tier, week, day);
   const cats = catsInTier(S.tier);
   return `<div class="tapes" role="group" aria-label="Уровень">${['b', 'a', 'p'].map(k => `<button class="tsel" data-t="${k}" data-act="tier" data-v="${k}" aria-pressed="${S.tier === k}"><b>${esc(TIERS[k].name)}</b><small>${TIERS[k].weeks} нед., ${esc(TIERS[k].price.toLowerCase())}</small></button>`).join('')}</div>
-  <section class="card tinfo">
+  <div class="split"><div class="col"><section class="card tinfo">
     <p>${esc(t.goal)}</p>
     ${S.tier !== 'b' ? '<p class="small muted">Платный уровень. В тестовой версии открыт.</p>' : ''}
     <details class="more"><summary>Подробнее об уровне</summary><dl class="kv"><dt>Время</dt><dd>${esc(t.time)}</dd><dt>Для кого</dt><dd>${esc(t.who)}</dd><dt>Где</dt><dd>${esc(t.places)}</dd><dt>Что дальше</dt><dd>${esc(t.next)}</dd></dl></details>
     <div class="acts"><button class="btn sm ghost" data-act="places">${ic('pin')}Где занимаетесь</button><button class="btn sm ghost" data-act="equip">${ic('bag')}Инвентарь</button></div>
     <p class="small muted">${cats.map(([c, n]) => `${esc(n)}: ${esc(PLACES[S.places[c]].toLowerCase())}`).join('; ')}</p>
   </section>
-  <section class="card wplan">
+  </div><div class="col"><section class="card wplan">
     <div class="wnav"><button class="iconbtn" data-act="week" data-v="-1" aria-label="Предыдущая неделя"${week <= 1 ? ' disabled' : ''}>${ic('back')}</button><span class="wl">Неделя ${week} из ${t.weeks}</span><button class="iconbtn" data-act="week" data-v="1" aria-label="Следующая неделя"${week >= t.weeks ? ' disabled' : ''}>${ic('chev')}</button></div>
     <div class="bar" aria-hidden="true"><i style="width:${wc.total ? Math.round(wc.done / wc.total * 100) : 0}%"></i></div>
     <p class="small muted">${wc.done} из ${wc.total} занятий. ${esc(progNote(S.tier, week))}</p>
     <div class="days7" role="group" aria-label="День недели">${DAYS.map((n, i) => `<button class="dbtn" data-act="day" data-v="${i}" aria-pressed="${day === i}"${i === todayIdx() ? ' data-today="1"' : ''} aria-label="${DAYS_FULL[i]}"><b>${n}</b><i data-v="${dayStatus(S.tier, week, i)}"></i></button>`).join('')}</div>
   </section>
+  </div></div>
   <div class="sec-h"><h2>${DAYS_FULL[day]}${day === todayIdx() ? ', сегодня' : ''}</h2><span class="small muted">${esc(d.n)}</span></div>
-  ${sess.map(sid => sessCard(sid, week, day)).join('')}
+  <div class="sgrid">${sess.map(sid => sessCard(sid, week, day)).join('')}</div>
   <div class="sec-h"><h2>Комплексы на любой день</h2></div>
   <section class="card xprac"><div><h2 class="h3">Восточные практики</h2><p class="small muted">По желанию. Основа курса остаётся восстанавливающей, йога уже в плане.</p></div>
     <div class="rows">${[['qg', 'Цигун: Ба Дуань Цзинь', 'вторник и пятница, 12–15 мин'], ['tc', 'Тайцзи: основы', 'среда и суббота, 15 мин']].map(([k, n, d]) => `<button class="lrow" data-act="extra" data-v="${k}" role="switch" aria-checked="${S.extra[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}</div></section>
@@ -2646,17 +2651,17 @@ const HOTS = {
 };
 const BM = { yaw: 0, anim: 0 };
 function vBody() {
-  return `<section class="card bm-card">
+  return `<div class="split bm-split"><div class="col"><section class="card bm-card">
     <div class="bm-head"><div><h1 class="h2">Карта тела</h1><p class="small muted">Нажмите на зону — откроется лестница упражнений для неё.</p></div>
     <div class="seg3" role="group" aria-label="Вид"><button data-act="bview" data-v="front" aria-pressed="${UI.view === 'front'}">Спереди</button><button data-act="bview" data-v="back" aria-pressed="${UI.view === 'back'}">Сзади</button></div></div>
     <div class="bodymap" id="bodymap"><div class="stage"><canvas id="bm-cv" aria-hidden="true"></canvas></div><svg class="bm-lines" id="bm-lines" aria-hidden="true"></svg><div id="bm-hots"></div></div>
-  </section>
+  </section></div><div class="col">
   <div class="sec-h"><h2>Все зоны</h2><span class="small muted fz-legend">${ic('target')}в фокусе на главной</span></div>
   <section class="card zlist">${ZL.map(z => {
     const s = zst(z.id), on = S.focus.includes(z.id);
     return `<div class="zitem"><button class="zi-main" data-act="zone" data-v="${z.id}"><b>${esc(z.n)}</b><span class="zm">Шаг ${s.step + 1} из ${z.steps.length}: ${esc(z.steps[s.step].n.toLowerCase())}</span></button>
       <button class="fz" data-act="focus" data-v="${z.id}" aria-pressed="${on}" aria-label="${on ? 'Убрать из фокуса' : 'Добавить в фокус'}: ${esc(z.n)}">${ic('target')}</button>${steps5(z.id)}</div>`;
-  }).join('')}</section>`;
+  }).join('')}</section></div></div>`;
 }
 function drawBody(showHots) {
   const box = document.getElementById('bodymap');
@@ -2804,7 +2809,7 @@ function vProgress() {
   const achN = ACH.filter(a => S.ach[a[0]]).length;
   const achShow = UI.allAch ? ACH : ACH.filter(a => S.ach[a[0]]).concat(ACH.filter(a => !S.ach[a[0]]).slice(0, 3));
   const lessonsAll = Object.keys(THEORY).length;
-  return `<section class="card lvl"><button class="iconbtn gearb" data-act="prefs" aria-label="Настройки и профиль">${ic('gear')}</button>${spineSvg(st.lvl)}
+  return `<div class="split"><div class="col"><section class="card lvl"><button class="iconbtn gearb" data-act="prefs" aria-label="Настройки и профиль">${ic('gear')}</button>${spineSvg(st.lvl)}
     <div><div class="lbl">Ваш уровень</div><div class="ln">${esc(lvlTitle(st.lvl))}</div><p class="ls">${esc(lvlRegion(st.lvl))}</p>
       <div class="bar xpbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
       <p class="small muted num">${st.lvl < 25 ? `${st.xp - lo} из ${hi - lo} XP до ${esc(VERT[st.lvl])}` : `${st.xp} XP`}</p>
@@ -2813,6 +2818,7 @@ function vProgress() {
   <section class="card"><div class="sec-h tight"><h2 class="h3">Активность</h2><span class="small muted">12 недель</span></div>
     <div class="heatwrap"><div class="hdays">${DAYS.map((d, i) => `<span>${i % 2 ? '' : d}</span>`).join('')}</div><div class="heat">${heat}</div></div>
     <div class="legend small muted"><i data-v="0"></i>нет<i data-v="1"></i>занятие<i data-v="2"></i>20+ минут</div></section>
+  </div><div class="col">
   <div class="sec-h"><h2>Зоны</h2><button class="lnk" data-act="tab" data-v="body">Карта тела</button></div>
   <section class="card zprog">${ZL.map(z => { const s = zst(z.id); return `<button class="zp" data-act="zone" data-v="${z.id}"><span>${esc(z.n)}</span>${steps5(z.id)}<span class="small muted num">${s.step + 1}/${z.steps.length}</span></button>`; }).join('')}</section>
   <div class="sec-h"><h2>Тесты</h2><span class="small muted">раз в 2–4 недели</span></div>
@@ -2821,6 +2827,7 @@ function vProgress() {
   <div class="sec-h"><h2>Награды</h2><span class="small muted num">${achN} из ${ACH.length}</span></div>
   <div class="ach">${achShow.map(a => `<button class="badge" data-act="ach" data-v="${a[0]}" data-on="${S.ach[a[0]] ? 1 : 0}"><span class="bi">${ic(S.ach[a[0]] ? a[3] : 'lock')}</span>${esc(a[1])}</button>`).join('')}</div>
   ${ACH.length > achShow.length || UI.allAch ? `<button class="linkbtn more" data-act="more" data-v="allAch">${UI.allAch ? 'Свернуть' : `Все награды (${ACH.length})`}</button>` : ''}
+  </div></div>
   <section class="card rows">
     <button class="lrow" data-act="lessons"><span>Уроки<small>Прочитано ${Object.keys(S.read).length} из ${lessonsAll}</small></span>${ic('chev')}</button>
     <button class="lrow" data-act="lit"><span>Литература и исследования<small>${LIT.length} источников, на которых построен курс</small></span>${ic('chev')}</button>
