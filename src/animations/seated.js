@@ -9,10 +9,10 @@
   const CHAIR = { r: [0, 54, -16], FL: ft(12, 30, { p: [0, 0, 1] }), FR: ft(-12, 30, { p: [0, 0, 1] }) };
 
   Object.assign(MOVES, {
-    pil_spine_stretch: sit({ cam: { yaw: 60, pitch: 14 }, m: ['erectors', 'hams'], kf: rep(P(LS, Object.assign({}, WIDE, { aL: [90, 10, 0, 0], aR: [90, 10, 0, 0], eL: 3, eR: 3 })), P(LS, Object.assign({}, WIDE, { sp: [26, 0, 0], ch: [28, 0, 0], nk: [26, 0, 0], aL: [56, 10, 0, 0], aR: [56, 10, 0, 0], eL: 3, eR: 3 })), { up: 1500, down: 1500, hb: 600 }) }),
+    pil_spine_stretch: sit({ cam: { yaw: 60, pitch: 14 }, m: ['erectors', 'hams'], kf: rep(P(LS, Object.assign({}, WIDE, { aL: [90, 10, 0, 0], aR: [90, 10, 0, 0], eL: 3, eR: 3 })), P(LS, Object.assign({}, WIDE, { sp: [26, 0, 0], ch: [28, 0, 0], nk: [26, 0, 0], aL: [120, 10, 0, 0], aR: [120, 10, 0, 0], eL: 3, eR: 3 })), { up: 1500, down: 1500, hb: 600 }) }),
     pil_saw: sit({
       cam: { yaw: 20, pitch: 18 }, m: ['obliques', 'hams'],
-      kf: alt(P(LS, Object.assign({}, WIDE, { aL: [0, 88, 0, 0], aR: [0, 88, 0, 0], eL: 3, eR: 3 })), P(LS, Object.assign({}, WIDE, { sp: [16, 0, 0], ch: [20, 0, 42], nk: [10, 0, 18], aL: [0, 80, 0, 40], aR: [60, 10, 0, -30], eL: 3, eR: 3 })), { d: 1100, hb: 700 })
+      kf: alt(P(LS, Object.assign({}, WIDE, { aL: [0, 88, 0, 0], aR: [0, 88, 0, 0], eL: 3, eR: 3 })), P(LS, Object.assign({}, WIDE, { sp: [16, 0, 0], ch: [20, 0, 42], nk: [10, 0, 18], aL: [0, 80, 0, 40], aR: [104, 10, 0, -30], eL: 3, eR: 3 })), { d: 1100, hb: 700 })
     }),
     ninety_ninety: sit({
       cam: { yaw: 10, pitch: 30 }, ease: 'cr', m: ['glutes', 'adductors'],
@@ -45,7 +45,7 @@
       cam: { yaw: 50, pitch: 14 }, mat: true, side: true, m: ['glutes', 'delts', 'obliques'],
       kf: [
         { p: P(LS, Object.assign({ r: [0, 20, 0], o: [0, -32, 0], lL: null, lR: null, FL: ft(13, 44, { p: [0, 1, 0.3] }), FR: ft(-13, 44, { p: [0, 1, 0.3] }) }, BEHIND)), d: 900, h: 300, a: 0.5 },
-        { p: P(LS, { r: [-6, 52, 6], o: [8, -96, -16], sp: [-8, 6, -10], ch: [-12, 12, -22], nk: [-10, 0, -20], lL: null, lR: null, FL: ft(13, 44, { p: [0, 1, 0.3] }), FR: ft(-13, 44, { p: [0, 1, 0.3] }), HL: hd(17, 4, -27, { p: [0.4, 0, 1], d: [0, -0.1, -1] }), HR: hd(26, 104, -18, { p: [-1, 0, 0.4], d: [0.6, 0.6, -0.2] }) }), d: 1100, h: 700, a: 1 }
+        { p: P(LS, { r: [-6, 54, 6], o: [8, -80, -16], sp: [-8, 6, -10], ch: [-10, 12, -22], nk: [14, 0, -24], lL: null, lR: null, FL: ft(13, 44, { p: [0, 1, 0.3] }), FR: ft(-13, 44, { p: [0, 1, 0.3] }), HL: hd(17, 4, -27, { p: [0.4, 0, 1], d: [0, -0.1, -1] }), HR: hd(26, 104, -18, { p: [-1, 0, 0.4], d: [0.6, 0.6, -0.2] }) }), d: 1100, h: 700, a: 1 }
       ]
     },
     l_sit: {

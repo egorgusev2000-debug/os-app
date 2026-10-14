@@ -9,6 +9,8 @@
   const BACK_ARMS = { aL: [0, 14, 0, 0], aR: [0, 14, 0, 0], eL: 4, eR: 4 };
   // palms flat on the floor beside the hips: they stay put while the pelvis lifts (bridges)
   const FLOOR_ARMS = { HL: hd(28, 3, 6, { d: [0.1, 0, 1], p: [1, -0.4, 0] }), HR: hd(-28, 3, 6, { d: [-0.1, 0, 1], p: [-1, -0.4, 0] }) };
+  // elbows and forearms resting on the bench top behind the shoulders (hip thrust)
+  const BENCH_ARMS = { HL: hd(30, 45, -30, { p: [1, 0.6, 0.2], d: [0.3, 0, -1] }), HR: hd(-30, 45, -30, { p: [-1, 0.6, 0.2], d: [-0.3, 0, -1] }) };
   const HEAD_HANDS = { HL: { t: [6, 1, -10], rel: 'H', p: [1, 0.3, 0.2], d: [-0.7, 0.2, 0.3] }, HR: { t: [-6, 1, -10], rel: 'H', p: [-1, 0.3, 0.2], d: [0.7, 0.2, 0.3] } };
 
   Object.assign(MOVES, {
@@ -32,11 +34,11 @@
       kf: hold(P(SU, { lL: [122, 8, 0, 0], lR: [122, 8, 0, 0], kL: 118, kR: 118, nk: [6, 0, 0], HL: hd(9, 47, -14, { p: [1, 0, 0] }), HR: hd(-9, 47, -14, { p: [-1, 0, 0] }) }), { in: { lL: [128, 8, 0, 0], lR: [128, 8, 0, 0] } })
     }),
     supine_butterfly: lie({
-      cam: { yaw: 40, pitch: 34 }, m: ['adductors', 'pelvicFloor'],
+      cam: { yaw: 30, pitch: 52 }, m: ['adductors', 'pelvicFloor'],
       kf: hold(P(SU, { aL: [0, 40, 0, 0], aR: [0, 40, 0, 0], FL: { t: [5, 9, 32], p: [1, 0.25, 0], u: [1, 0.2, 0], d: [0, 0, 1] }, FR: { t: [-5, 9, 32], p: [-1, 0.25, 0], u: [-1, 0.2, 0], d: [0, 0, 1] } }))
     }),
     supine_twist: lie({
-      cam: { yaw: 30, pitch: 38 }, side: true, m: ['obliques', 'glutes'],
+      cam: { yaw: 20, pitch: 55 }, side: true, m: ['obliques', 'glutes'],
       kf: hold(P(SU, { aL: [0, 88, 0, 0], aR: [0, 88, 0, 0], eL: 6, eR: 6, nk: [0, 0, -40], lL: [88, 0, 0, -62], lR: [88, 0, 0, 62], kL: 90, kR: 90, ch: [0, 0, 8] }))
     }),
     legs_wall: lie({
@@ -56,7 +58,7 @@
       kf: [
         { p: P(SU, Object.assign({ aL: [176, 10, 0, 0], aR: [176, 10, 0, 0], eL: 4, eR: 4 }, FLAT_LEGS)), d: 1500, a: 0.4 },
         { p: P(SU, Object.assign({ o: [0, -52, 0], sp: [28, 0, 0], ch: [32, 0, 0], nk: [24, 0, 0], aL: [96, 8, 0, 0], aR: [96, 8, 0, 0], eL: 4, eR: 4 }, FLAT_LEGS)), d: 1500, a: 1 },
-        { p: P(SU, Object.assign({ o: [0, 12, 0], sp: [26, 0, 0], ch: [26, 0, 0], nk: [26, 0, 0], aL: [70, 8, 0, 0], aR: [70, 8, 0, 0], eL: 4, eR: 4 }, FLAT_LEGS)), d: 1500, a: 0.8 },
+        { p: P(SU, Object.assign({ o: [0, 12, 0], sp: [26, 0, 0], ch: [26, 0, 0], nk: [26, 0, 0], aL: [138, 8, 0, 0], aR: [138, 8, 0, 0], eL: 4, eR: 4 }, FLAT_LEGS)), d: 1500, a: 0.8 },
         { p: P(SU, Object.assign({ o: [0, -52, 0], sp: [28, 0, 0], ch: [32, 0, 0], nk: [24, 0, 0], aL: [96, 8, 0, 0], aR: [96, 8, 0, 0], eL: 4, eR: 4 }, FLAT_LEGS)), d: 1500, a: 1 }
       ]
     }),
@@ -85,10 +87,10 @@
     chin_lift: lie({ cam: camL3, focus: 'head', m: ['neckFlex'], kf: rep(P(HK, BACK_ARMS), P(HK, Object.assign({ nk: [12, 0, 0], hd: [16, 0, 0] }, BACK_ARMS)), { up: 900, down: 900, hb: 2500 }) }),
     curl_up: lie({
       cam: camL3, m: ['abs', 'obliques'],
-      kf: rep(P(SU, { FL: ft(11, 42, { p: [0.1, 1, 0] }), FR: { t: [-9, 6, 87], ft: -72, p: [0, 1, 0] }, HL: { t: [6, -6, -16], rel: 'P', p: [1, 0, 0.3] }, HR: { t: [-6, -6, -16], rel: 'P', p: [-1, 0, 0.3] } }),
-        P(SU, { ch: [13, 0, 0], nk: [5, 0, 0], FL: ft(11, 42, { p: [0.1, 1, 0] }), FR: { t: [-9, 6, 87], ft: -72, p: [0, 1, 0] }, HL: { t: [6, -6, -16], rel: 'P', p: [1, 0, 0.3] }, HR: { t: [-6, -6, -16], rel: 'P', p: [-1, 0, 0.3] } }), { up: 900, down: 900, hb: 2500 })
+      kf: rep(P(SU, { FL: ft(11, 42, { p: [0.1, 1, 0] }), FR: { t: [-9, 6, 87], ft: -72, p: [0, 1, 0] }, HL: { t: [6, 6, -6.5], rel: 'P', p: [1, 0, 0.3] }, HR: { t: [-6, 6, -6.5], rel: 'P', p: [-1, 0, 0.3] } }),
+        P(SU, { ch: [13, 0, 0], nk: [5, 0, 0], FL: ft(11, 42, { p: [0.1, 1, 0] }), FR: { t: [-9, 6, 87], ft: -72, p: [0, 1, 0] }, HL: { t: [6, 6, -6.5], rel: 'P', p: [1, 0, 0.3] }, HR: { t: [-6, 6, -6.5], rel: 'P', p: [-1, 0, 0.3] } }), { up: 900, down: 900, hb: 2500 })
     }),
-    toe_tap: lie({ cam: camL3, m: ['abs'], kf: alt(P(SU, Object.assign({}, TABLE, BACK_ARMS)), P(SU, Object.assign({}, TABLE, BACK_ARMS, { lL: [34, 2, 0, 0], kL: 92 })), { d: 900, hb: 200 }) }),
+    toe_tap: lie({ cam: camL3, m: ['abs'], kf: alt(P(SU, Object.assign({}, TABLE, BACK_ARMS)), P(SU, Object.assign({}, TABLE, BACK_ARMS, { lL: [40, 2, 0, 0], kL: 84 })), { d: 900, hb: 200 }) }),
     rev_crunch: lie({ cam: camL, m: ['abs'], kf: rep(P(SU, Object.assign({}, TABLE, BACK_ARMS)), P(SU, Object.assign({}, BACK_ARMS, { o: [0, -122, 0], lL: [112, 2, 0, 0], lR: [112, 2, 0, 0], kL: 100, kR: 100, fL: 20, fR: 20 })), { up: 1000, down: 1600, hb: 300 }) }),
     hollow: lie({
       cam: camL3, m: ['abs', 'hipflex'],
@@ -109,7 +111,8 @@
     happy_baby: lie({
       cam: { yaw: 25, pitch: 34 }, ease: 'cr', m: ['adductors', 'pelvicFloor'],
       kf: (() => {
-        const B = r => P(SU, { o: [0, -90, r], nk: [8, 0, 0], lL: [128, 0, 0, 34], lR: [128, 0, 0, 34], kL: 92, kR: 92, fL: -10, fR: -10, HL: { t: [19, -9, 66], rel: 'P', p: [1, 0, -0.5] }, HR: { t: [-19, -9, 66], rel: 'P', p: [-1, 0, -0.5] } });
+        // knees toward the armpits, shins vertical, the hands hold the feet
+        const B = r => P(SU, { o: [0, -90, r], ch: [14, 0, 0], nk: [15, 0, 0], lL: [140, 0, 0, 20], lR: [140, 0, 0, 20], kL: 75, kR: 75, fL: -10, fR: -10, HL: { t: [29.1, 21.7, 51.8], rel: 'P', p: [1, 0, -0.5], d: [0.23, -0.4, 0.89] }, HR: { t: [-29.1, 21.7, 51.8], rel: 'P', p: [-1, 0, -0.5], d: [-0.23, -0.4, 0.89] } });
         return [{ p: B(-7), d: 1100, a: 0.9 }, { p: B(7), d: 1100, a: 0.9 }];
       })()
     }),
@@ -140,9 +143,9 @@
         ];
       })()
     },
-    prone_extension: lie({ cam: camP3, m: ['erectors', 'glutes', 'rhomboids'], kf: rep(P(PR, { nk: [0, 0, 0] }), P(PR, { sp: [-11, 0, 0], ch: [-15, 0, 0], nk: [-6, 0, 0], aL: [0, 14, 40, 0], aR: [0, 14, 40, 0], sL: [0, -2], sR: [0, -2] }), { up: 1000, down: 1400, hb: 1500 }) }),
+    prone_extension: lie({ cam: camP3, m: ['erectors', 'glutes', 'rhomboids'], kf: rep(P(PR, { nk: [0, 0, 0] }), P(PR, { sp: [-11, 0, 0], ch: [-15, 0, 0], nk: [-6, 0, 0], aL: [-22, 14, 40, 0], aR: [-22, 14, 40, 0], sL: [0, -2], sR: [0, -2] }), { up: 1000, down: 1400, hb: 1500 }) }),
     prone_ytw: lie({
-      cam: { yaw: -30, pitch: 34 }, m: ['traps', 'rhomboids', 'rotator'], props: [],
+      cam: { yaw: -20, pitch: 50 }, m: ['traps', 'rhomboids', 'rotator'], props: [],
       kf: (() => {
         const b = { nk: [0, 0, 0] };
         const Y = l => P(PR, Object.assign({}, b, { aL: [0, 148, 90, l ? 22 : 0], aR: [0, 148, 90, l ? 22 : 0], eL: 3, eR: 3 }));
@@ -176,8 +179,8 @@
     }),
     hip_thrust: {
       cam: { yaw: 90, pitch: 10 }, floor: false, props: [{ t: 'bench', x0: -28, x1: 28, z0: -54, z1: -14, h: 42 }], m: ['glutes', 'hams'],
-      kf: rep(P(SU, Object.assign({ r: [0, 26, 12], o: [0, -58, 0], nk: [6, 0, 0], FL: ft(13, 58, { p: [0.1, 1, 0.2] }), FR: ft(-13, 58, { p: [-0.1, 1, 0.2] }) }, BACK_ARMS)),
-        P(SU, Object.assign({ r: [0, 53, 20], o: [0, -92, 0], nk: [14, 0, 0], FL: ft(13, 58, { p: [0.1, 1, 0.2] }), FR: ft(-13, 58, { p: [-0.1, 1, 0.2] }) }, BACK_ARMS)), { up: 1000, down: 1500, hb: 900 })
+      kf: rep(P(SU, Object.assign({ r: [0, 26, 12], o: [0, -58, 0], nk: [6, 0, 0], FL: ft(13, 58, { p: [0.1, 1, 0.2] }), FR: ft(-13, 58, { p: [-0.1, 1, 0.2] }) }, BENCH_ARMS)),
+        P(SU, Object.assign({ r: [0, 53, 20], o: [0, -92, 0], nk: [14, 0, 0], FL: ft(13, 58, { p: [0.1, 1, 0.2] }), FR: ft(-13, 58, { p: [-0.1, 1, 0.2] }) }, BENCH_ARMS)), { up: 1000, down: 1500, hb: 900 })
     },
     pelvic_floor: lie({ cam: { yaw: 70, pitch: 26 }, m: ['pelvicFloor'], kf: rep(P(HK, BACK_ARMS), P(HK, Object.assign({ o: [0, -92, 0] }, BACK_ARMS)), { up: 700, down: 1200, hb: 2500, ha: 1500, aA: 0.1 }) })
   });

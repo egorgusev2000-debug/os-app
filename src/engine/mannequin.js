@@ -93,6 +93,19 @@ const OS3D = (function () {
     return [x[0], y[0], z[0], x[1], y[1], z[1], x[2], y[2], z[2]];
   }
 
+  // Front of a limb segment for its bone frame: perpendicular to the segment, in the plane of the bend, facing the
+  // next segment (or away from it). A pole vector alone flips the frame by 180 degrees whenever the segment lines up
+  // with the pole (a thigh in a deep squat, a forearm at 90 degrees); the bend plane does not. A nearly straight limb has
+  // no bend plane, so it falls back to the pole, and the two blend smoothly in between.
+  function bendFront(up, toNext, poleFront, away) {
+    const y = norm(up);
+    const b = sub(toNext, mul(y, dot(toNext, y)));
+    const lb = len(b), w = clamp((lb / (len(toNext) || 1) - 0.08) / 0.22, 0, 1);
+    const pf = sub(poleFront, mul(y, dot(poleFront, y))), lp = len(pf);
+    return add(lb > 1e-6 ? mul(b, (away ? -w : w) / lb) : [0, 0, 0], lp > 1e-6 ? mul(pf, (1 - w) / lp) : [0, 0, 0]);
+  }
+  const colZ = F => [F[2], F[5], F[8]];
+
   function solve(p) {
     const Fp = mm(ry(p.o[0]), mm(rx(p.o[1]), rz(p.o[2])));
     const at = (base, F, v) => add(base, mv(F, v));
@@ -125,9 +138,11 @@ const OS3D = (function () {
         E = r[0]; W = r[1];
         const dir = ikH.d ? norm(ikH.d) : norm(sub(W, E));
         T = add(W, mul(dir, B.hand));
-        Fu = frameFrom(sub(S, E), mul(norm(pole), -1));
-        Ff = frameFrom(sub(E, W), mul(norm(pole), -1));
-        Fw = frameFrom(sub(W, T), mul(norm(pole), -1));
+        const np = mul(norm(pole), -1);
+        Fu = frameFrom(sub(S, E), bendFront(sub(S, E), sub(W, E), np, false));
+        Ff = frameFrom(sub(E, W), bendFront(sub(E, W), sub(S, E), np, false));
+        // the hand turns with the forearm; only a hand bent square to the forearm front falls back to the pole
+        Fw = frameFrom(sub(W, T), bendFront(sub(W, T), colZ(Ff), np, false));
       } else {
         Fu = mm(Ft, JL(p['a' + side], s));
         E = at(S, Fu, [0, -B.ua, 0]);
@@ -146,8 +161,8 @@ const OS3D = (function () {
         K = r[0]; A = r[1];
         Fa = ikF.d ? frameFrom(ikF.u || [0, 1, 0], ikF.d) : mm(ry(yaw + (ikF.fy || 0) * s), rx(ikF.ft || 0));
         Toe = at(A, Fa, B.toe); Heel = at(A, Fa, B.heel);
-        Fth = frameFrom(sub(Hp, K), pole);
-        Fsh = frameFrom(sub(K, A), pole);
+        Fth = frameFrom(sub(Hp, K), bendFront(sub(Hp, K), sub(A, K), pole, true));
+        Fsh = frameFrom(sub(K, A), bendFront(sub(K, A), sub(Hp, K), pole, true));
       } else {
         Fth = mm(Fp, JL(p['l' + side], s));
         K = at(Hp, Fth, [0, -B.th, 0]);
