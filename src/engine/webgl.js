@@ -44,7 +44,7 @@ const OS3G = (function () {
   }
 
   /* ---------- shaders ---------- */
-  const HEAD_VARY = `out vec3 vW; out vec3 vN; out float vT; out vec3 vU; out float vC; out float vR; out vec2 vQ; out vec4 vCl; out vec4 vLm;`;
+  const HEAD_VARY = `out vec3 vW; out vec3 vN; out float vT; out vec3 vU; out float vC; out float vR; out vec2 vQ; out vec4 vCl; out vec4 vLm; out vec2 vUV;`;
   const NO_SKIN = `vCl = vec4(0.0); vLm = vec4(0.0, -1.0, 0.0, 0.0);`;
   // capsule with a muscle profile: radius goes ra -> rm (at tm) -> rb along the bone, hemispherical ends
   const VS_CAP = `#version 300 es
@@ -119,7 +119,7 @@ void main() {
 }`;
   const VS_SKIN = `#version 300 es
 precision highp float;
-in vec3 aPos; in vec3 aNor; in vec4 aBI; in vec4 aBW; in vec4 aCl; in vec4 aLm; in float aRel;
+in vec3 aPos; in vec3 aNor; in vec4 aBI; in vec4 aBW; in vec4 aCl; in vec4 aLm; in float aRel; in vec2 aUV;
 uniform mat4 uVP; uniform vec4 uDQ[34]; uniform float uMir;
 ${HEAD_VARY}
 vec3 qrot(vec4 q, vec3 v) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
@@ -134,12 +134,13 @@ void main() {
   vec3 p = qrot(r, aPos) + 2.0 * (r.w * d.xyz - d.w * r.xyz + cross(r.xyz, d.xyz));
   vec3 n = qrot(r, aNor);
   p.x *= uMir; n.x *= uMir;
-  vW = p; vN = n; vT = 0.0; vU = aPos; vC = 1.0; vR = aRel; vQ = vec2(0.0, -1.0); vCl = aCl; vLm = aLm;
+  vW = p; vN = n; vT = 0.0; vU = aPos; vC = 1.0; vR = aRel; vQ = vec2(0.0, -1.0); vCl = aCl; vLm = aLm; vUV = aUV;
   gl_Position = uVP * vec4(p, 1.0);
 }`;
   const FS_BODY = `#version 300 es
 precision highp float;
-in vec3 vW; in vec3 vN; in float vT; in vec3 vU; in float vC; in float vR; in vec2 vQ; in vec4 vCl; in vec4 vLm;
+in vec3 vW; in vec3 vN; in float vT; in vec3 vU; in float vC; in float vR; in vec2 vQ; in vec4 vCl; in vec4 vLm; in vec2 vUV;
+uniform sampler2D uTex; uniform int uTexOn;
 uniform vec3 uSkin; uniform vec3 uHair;
 uniform int uAnat; uniform float uFib; uniform vec2 uTen; uniform vec3 uTend; uniform vec3 uHot; uniform vec4 uMusX[12];
 uniform vec3 uCol; uniform vec3 uCol2; uniform float uSplit; uniform int uMode;
@@ -166,23 +167,32 @@ float bodyAO(vec3 P, vec3 N) {
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   vec3 base = uCol;
+  float skinW = 0.0;
+  // skin colour: the painted MakeHuman skin when it is loaded, else the flat palette colour
+  vec3 skinC = uSkin;
+  if (uTexOn == 1 && uMode == 4) skinC = pow(texture(uTex, vUV).rgb, vec3(2.2)) * 0.92;
   if (uMode == 1) base = vT < uSplit ? uCol2 : uCol;
   else if (uMode == 2) { float hl = mix(0.24, -0.56, smoothstep(0.2, -0.5, vU.z)); hl -= 0.12 * smoothstep(0.5, 0.9, abs(vU.x)) * step(0.0, vU.z); if (vU.y < hl) discard; }
   else if (uMode == 3) base = vC > 0.5 ? uCol : uCol2;
+  if (uMode == 5) {
+    vec4 t = texture(uTex, vUV);
+    if (t.a < 0.42) discard;
+    base = pow(t.rgb, vec3(2.2)) * uCol;
+  }
   vec2 fq = vQ; vec2 ften = uTen; float fon = uFib;
   if (uMode == 4) {
     // one-piece body: top above the waist, shorts on the pelvis and upper thighs, skin elsewhere
     bool top = vCl.x > 0.0 && vCl.y > 0.0;
     bool bot = !top && vCl.z > 0.0 && vCl.y <= 0.0;
     if (uAnat == 1) base = vLm.y < -1.5 ? uSkin : uCol;
-    else if (uLook > 0) {
+    else {
       // soft clothing edges: blend across the seam instead of a stepped cut along the triangles
       vec2 w = max(fwidth(vCl.xy), vec2(0.02)) * 1.5;
       float wTop = smoothstep(-w.x, w.x, vCl.x) * smoothstep(-w.y, w.y, vCl.y);
       float wBot = (1.0 - wTop) * smoothstep(-w.x, w.x, vCl.z) * (1.0 - smoothstep(-w.y, w.y, vCl.y));
-      base = mix(mix(uSkin, uCol2, wBot), uCol, wTop);
+      base = mix(mix(skinC, uCol2, wBot), uCol, wTop);
+      skinW = (1.0 - wTop) * (1.0 - wBot);
     }
-    else base = top ? uCol : (bot ? uCol2 : uSkin);
     if (vCl.w != 0.0) { if (vCl.w < 0.0) discard; base = uHair; }
     fq = vLm.xy; ften = vLm.zw; fon = uAnat == 1 ? 1.0 : 0.0;
   }
@@ -197,6 +207,7 @@ void main() {
     base = mix(base, uTend, tend * 0.75);
   }
   vec3 N = normalize(vN); vec3 V = normalize(uEye - vW);
+  if (uMode == 5 && dot(N, V) < 0.0) N = -N;
   float d1 = max(0.0, (dot(N, uL1) + uWrap) / (1.0 + uWrap));
   float d2 = max(0.0, dot(N, uL2));
   vec3 hemi = mix(uGround, uSky, N.y * 0.5 + 0.5);
@@ -207,7 +218,7 @@ void main() {
   vec3 c = base * (hemi * 0.5 * ao + d1 * mix(0.98, 0.98 * ao, 0.55) + d2 * 0.22 * ao) + sp * ao + fr * 0.16 * uSky * ao;
   if (uLook == 1) {
     // studio: warm key, cool fill, rim light along the outline, light passing through skin at the shadow edge
-    float isSkin = uMode == 4 ? step(0.5, 1.0 - step(0.001, distance(base, uSkin))) : 0.0;
+    float isSkin = skinW;
     float k = max(0.0, dot(N, uL1));
     float kw = max(0.0, (dot(N, uL1) + 0.45) / 1.45);
     vec3 key = vec3(1.0, 0.95, 0.88) * mix(k, kw, isSkin);
@@ -223,7 +234,7 @@ void main() {
     // clean sculpture: one matte material, soft light, bright outline
     float lum = dot(base, vec3(0.3, 0.55, 0.15));
     vec3 clay = mix(vec3(lum), base, 0.18);
-    clay = mix(clay * 1.25, clay * 0.9, step(0.001, distance(base, uSkin)) * 0.6);
+    clay = mix(clay * 0.9, clay * 1.25, skinW * 0.6 + 0.4 * (1.0 - step(0.5, float(uMode == 4))));
     float kw = max(0.0, (dot(N, uL1) + 0.6) / 1.6);
     float rim = pow(1.0 - max(dot(N, V), 0.0), 2.4);
     c = clay * (hemi * 0.55 * ao + kw * 0.85 * mix(1.0, ao, 0.55) + max(0.0, dot(N, uL2)) * 0.18 * ao) + ao * rim * mix(0.22, 0.45, uDarkBg) * vec3(0.92, 0.96, 1.0);
@@ -309,7 +320,7 @@ void main() {
     const mk = (t, s) => { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; };
     const p = gl.createProgram();
     gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
-    gl.bindAttribLocation(p, 0, 'aP'); gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aNor'); gl.bindAttribLocation(p, 2, 'aCol'); gl.bindAttribLocation(p, 3, 'aRel'); gl.bindAttribLocation(p, 4, 'aBI'); gl.bindAttribLocation(p, 5, 'aBW'); gl.bindAttribLocation(p, 6, 'aCl'); gl.bindAttribLocation(p, 7, 'aLm');
+    gl.bindAttribLocation(p, 0, 'aP'); gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aNor'); gl.bindAttribLocation(p, 2, 'aCol'); gl.bindAttribLocation(p, 3, 'aRel'); gl.bindAttribLocation(p, 4, 'aBI'); gl.bindAttribLocation(p, 5, 'aBW'); gl.bindAttribLocation(p, 6, 'aCl'); gl.bindAttribLocation(p, 7, 'aLm'); gl.bindAttribLocation(p, 8, 'aUV');
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
@@ -456,8 +467,9 @@ void main() {
   function mmul(a, b) { const o = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; o[i * 4 + j] = s; } return o; }
   const colMajor3 = F => [F[0], F[3], F[6], F[1], F[4], F[7], F[2], F[5], F[8]];
 
-  // figure look: 0 classic, 1 studio, 2 clean sculpture (window.OS3_LOOK while we compare)
-  const LOOK = () => (typeof window !== 'undefined' && window.OS3_LOOK) | 0;
+  // figure look: 1 studio (default), 0 classic, 2 clean sculpture; window.OS3_LOOK switches it for comparisons
+  const LOOK = () => { const v = typeof window !== 'undefined' ? window.OS3_LOOK : undefined; return v === undefined ? 1 : v | 0; };
+  const HAIR_TINT = [1, 1, 1];
   const AO_ON = () => !(typeof window !== 'undefined' && window.OS3_AO === 0);
 
   /* ---------- motion: follow-through and breathing ---------- */
@@ -528,7 +540,17 @@ void main() {
     const IDX = dec(src.IDX, Uint16Array);
     tankTop(P, CL, nv);
     smoothRegions(CL, IDX, nv);
-    return { P, N, BI, BW, CL, LM, RL, IDX, nv, nt: IDX.length / 3, glb: src.feat };
+    const uv = a => { const q = dec(a, Uint16Array), o = f32(q.length); for (let i = 0; i < q.length; i++) o[i] = q[i] / 65535; return o; };
+    const UV = src.UV ? uv(src.UV) : f32(nv * 2);
+    // parts drawn with their own texture and skinned to one bone (hair, eyebrows)
+    const parts = (src.parts || []).map(q => {
+      const n = q.nv, p16 = dec(q.P, Int16Array), n8 = dec(q.N, Int8Array);
+      const Pq = f32(n * 3), Nq = f32(n * 3), BIq = f32(n * 4), BWq = f32(n * 4), CLq = f32(n * 4), LMq = f32(n * 4), RLq = f32(n);
+      for (let i = 0; i < n * 3; i++) { Pq[i] = p16[i] / 100; Nq[i] = n8[i] / 127; }
+      for (let i = 0; i < n; i++) { BIq[i * 4] = q.bone; BWq[i * 4] = 1; LMq[i * 4 + 1] = -2; }
+      return { n: q.n, P: Pq, N: Nq, BI: BIq, BW: BWq, CL: CLq, LM: LMq, RL: RLq, UV: uv(q.UV), IDX: dec(q.IDX, Uint16Array), tex: q.tex };
+    });
+    return { P, N, BI, BW, CL, LM, RL, IDX, UV, tex: src.tex || null, parts, nv, nt: IDX.length / 3, glb: src.feat };
   }
   // The tank top is cut by clean shapes on the body at rest (male MakeHuman body, centimetres):
   // round armholes from the shoulder to the armpit, a soft scoop at the neck, the hem at the shorts.
@@ -641,6 +663,22 @@ void main() {
     // one-piece body for the current sex, uploaded when the worker has built it
     let SK = null;
     const DQ = new Float32Array(34 * 4);
+    // a texture from a data URL; the frame is redrawn once it is ready
+    function loadTex(url, done) {
+      const img = new Image();
+      img.onload = () => {
+        if (st.dead) return;
+        const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        done(t); kick();
+      };
+      img.src = url;
+    }
     function ensureSkin() {
       if (opts.noMesh || !pg.skin) return null;
       const sex = OS3D.BODY.sex;
@@ -650,8 +688,16 @@ void main() {
       if (!e) { SK = { sex, ready: false }; return null; }
       if (!e.ready) { SK = { sex, ready: false }; e.subs.push(() => { if (!st.dead && SK && SK.sex === sex && !SK.ready) { SK = null; kick(); } }); return null; }
       const d = e.data;
-      const v = vao(gl, [[0, 3, d.P], [1, 3, d.N], [4, 4, d.BI], [5, 4, d.BW], [6, 4, d.CL], [7, 4, d.LM], [3, 1, d.RL]], d.IDX);
-      SK = { sex, ready: true, vao: v, n: d.IDX.length, type: d.IDX instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, rest: e.rest, glb: e.glb || null };
+      const attrs = q => [[0, 3, q.P], [1, 3, q.N], [4, 4, q.BI], [5, 4, q.BW], [6, 4, q.CL], [7, 4, q.LM], [3, 1, q.RL]].concat(q.UV ? [[8, 2, q.UV]] : []);
+      const v = vao(gl, attrs(d), d.IDX);
+      SK = { sex, ready: true, vao: v, n: d.IDX.length, type: d.IDX instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, rest: e.rest, glb: e.glb || null, tex: null, parts: [] };
+      const sk = SK;
+      if (d.tex) loadTex(d.tex, t => { sk.tex = t; });
+      (d.parts || []).forEach(q => {
+        const part = { n: q.n, vao: vao(gl, attrs(q), q.IDX), cnt: q.IDX.length, tex: null };
+        sk.parts.push(part);
+        loadTex(q.tex, t => { part.tex = t; });
+      });
       return SK;
     }
     const fq = vao(gl, [[0, 2, new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1])]], new Uint16Array([0, 1, 2, 0, 2, 3]));
@@ -808,7 +854,16 @@ void main() {
           gl.uniform4fv(gsk.u.uDQ, DQ); gl.uniform1f(gsk.u.uMir, mir ? -1 : 1);
           gl.uniform3fv(gsk.u.uCol, anat ? AN.mus : P.top); gl.uniform3fv(gsk.u.uCol2, P.bottom); gl.uniform3fv(gsk.u.uSkin, P.skin); gl.uniform3fv(gsk.u.uHair, P.hair);
           gl.uniform1i(gsk.u.uMode, 4); gl.uniform1f(gsk.u.uShine, anat ? 0.14 : 0.1);
+          gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, skin.tex); gl.uniform1i(gsk.u.uTex, 0);
+          gl.uniform1i(gsk.u.uTexOn, skin.tex && !anat ? 1 : 0);
           gl.bindVertexArray(skin.vao.o); gl.drawElements(gl.TRIANGLES, skin.n, skin.type, 0);
+          skin.parts.forEach(pt => {
+            if (!pt.tex) return;
+            gl.bindTexture(gl.TEXTURE_2D, pt.tex); gl.uniform1i(gsk.u.uMode, 5); gl.uniform1i(gsk.u.uTexOn, 1);
+            gl.uniform3fv(gsk.u.uCol, pt.n === 'hair' ? HAIR_TINT : [1, 1, 1]); gl.uniform1f(gsk.u.uShine, pt.n === 'hair' ? 0.06 : 0.02);
+            gl.bindVertexArray(pt.vao.o); gl.drawElements(gl.TRIANGLES, pt.cnt, gl.UNSIGNED_SHORT, 0);
+          });
+          gl.uniform1i(gsk.u.uTexOn, 0);
         }
         // torso
         if (!skin) {
@@ -877,6 +932,7 @@ void main() {
             capDraw(c, c, ey.r * 0.97, ey.r * 0.97, EYE_W, null, 0, 0.45);
             const ic = at(add(ey.c, mul(ey.f, ey.r * 0.8)));
             capDraw(ic, ic, ey.r * 0.42, ey.r * 0.42, EYE_I, null, 0, 0.6);
+            if (skin.parts.some(q => q.n === 'brows' && q.tex)) return;
             const br = fe['brow_' + sd];
             capDraw(at(br[0]), at(br[1]), 0.3, 0.34, P.hair, null, 0, 0.1);
             capDraw(at(br[1]), at(br[2]), 0.34, 0.2, P.hair, null, 0, 0.1);

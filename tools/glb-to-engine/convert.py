@@ -11,8 +11,10 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 if len(sys.argv) < 4:
-    sys.exit('usage: python convert.py model.glb engine_rest.json src/data/body-male.js')
+    sys.exit('usage: python convert.py model.glb engine_rest.json src/data/body-male.js [hair_dir base.obj]')
 GLB, ENG, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
+# optional: a MakeHuman hair proxy folder (.mhclo + .obj + diffuse .png) and the hm08 base mesh (base.obj) it is fitted to
+HAIR, BASEOBJ = (sys.argv[4], sys.argv[5]) if len(sys.argv) > 5 else (None, None)
 
 # ---------------- GLB ----------------
 f = open(GLB, 'rb').read()
@@ -55,8 +57,9 @@ def mesh_data(mi):
 
 body_mi = next(i for i, m in enumerate(J['meshes']) if m['name'] == 'base')
 P, I, Jn, Wt = mesh_data(body_mi)
+UV0 = acc(J['meshes'][body_mi]['primitives'][0]['attributes']['TEXCOORD_0'])
 
-# weld by position (UV seams are not needed: the engine has no textures)
+# weld by position for the surface work; the UV seams come back at the end (the skin texture needs them)
 key = np.round(P * 100).astype(np.int64)
 _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
 inv = inv.ravel()
@@ -165,7 +168,8 @@ for k in range(3): np.add.at(Nn, T[:, k], fn)
 Nn /= np.linalg.norm(Nn, axis=1, keepdims=True) + 1e-12
 # winding: make normals point outward (check torso front)
 c = out.mean(0)
-if np.mean(np.sum((out - c) * Nn, 1)) < 0: Nn = -Nn; T = T[:, [0, 2, 1]]
+WIND_FLIP = False
+if np.mean(np.sum((out - c) * Nn, 1)) < 0: Nn = -Nn; T = T[:, [0, 2, 1]]; WIND_FLIP = True
 
 # ---------------- clothes / anatomy labels from the nearest engine vertex ----------------
 EP = np.array(E['P']).reshape(-1, 3); ECL = np.array(E['CL']).reshape(-1, 4); ELM = np.array(E['LM']).reshape(-1, 4); ERL = np.array(E['RL'])
@@ -247,25 +251,95 @@ lo, hi = cr.min(0), cr.max(0)
 feat['skull'] = {'c': [0.0, round(float(browy - 1.0), 2), round(float((lo[2] + hi[2]) / 2), 2)], 'r': [round(float(max(-lo[0], hi[0])), 2), round(float(hi[1] - (browy - 1.0)), 2), round(float((hi[2] - lo[2]) / 2), 2)], 'top': round(float(hi[1]), 2)}
 print('features', json.dumps(feat))
 
-# ---------------- short hair: a thin shell over the cranium, part of the body mesh, flagged in CL.w ----------------
-browy = float(np.mean([p[1] for k in ('brow_l', 'brow_r') for p in feat[k]]))
-qh = to_head(out)
-th = np.arctan2(qh[:, 0], qh[:, 2])
-a = np.abs(th)
-hl = np.interp(a, [0, 0.55, 1.1, 1.7, 2.4, np.pi], [browy + 4.6, browy + 4.2, browy + 2.6, browy + 2.2, -4.0, -5.5])
-hairv = head & (qh[:, 1] > hl - 2.5)
-tri_h = T[hairv[T].all(1)]
-idx_h = np.unique(tri_h)
-newi = -np.ones(nv, np.int64); newi[idx_h] = nv + np.arange(len(idx_h))
-HP = out[idx_h] + Nn[idx_h] * 0.45
-out = np.vstack([out, HP]); Nn = np.vstack([Nn, Nn[idx_h]])
-hb = np.zeros((len(idx_h), 4), np.float32); hb[:, 0] = BONE['head']
-BI = np.vstack([BI, hb]); BWt = np.vstack([BWt, np.tile([1.0, 0, 0, 0], (len(idx_h), 1))])
-CLh = CL[idx_h].copy(); CLh[:, 3] = np.where(np.abs(qh[idx_h, 1] - hl[idx_h]) < 0.02, 0.02, qh[idx_h, 1] - hl[idx_h]); CL = np.vstack([CL, CLh])
-LMh = LM[idx_h].copy(); LM = np.vstack([LM, LMh]); RL = np.concatenate([RL, np.zeros(len(idx_h))])
-T = np.vstack([T, newi[tri_h]])
-nv = len(out)
-print('hair verts', len(idx_h), 'tris', len(tri_h))
+# ---------------- back to the original vertices: UV seams and the skin texture ----------------
+import io
+from PIL import Image
+ow = remap[inv]                                   # original GLB vertex -> body vertex (or -1)
+okv = ow >= 0
+oid = -np.ones(len(ow), np.int64); oid[okv] = np.arange(okv.sum())
+To = oid[I]; To = To[(To >= 0).all(1)]
+if WIND_FLIP: To = To[:, [0, 2, 1]]
+src = ow[okv]
+out, Nn, BI, BWt, CL, LM, RL = out[src], Nn[src], BI[src], BWt[src], CL[src], LM[src], RL[src]
+UV = UV0[okv]
+T = To; nv = len(out)
+print('body verts with UV seams', nv, 'tris', len(T))
+
+def image_bytes(ii):
+    im = J['images'][ii]; bv = J['bufferViews'][im['bufferView']]
+    return BIN[bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
+def data_url(img, size, fmt):
+    img = img.copy(); img.thumbnail((size, size), Image.LANCZOS)
+    b = io.BytesIO()
+    if fmt == 'jpeg': img.convert('RGB').save(b, 'JPEG', quality=86, optimize=True, progressive=True)
+    else: img.save(b, 'PNG', optimize=True)
+    return 'data:image/%s;base64,' % fmt + base64.b64encode(b.getvalue()).decode()
+mat = J['materials'][J['meshes'][body_mi]['primitives'][0]['material']]
+tex_i = J['textures'][mat['pbrMetallicRoughness']['baseColorTexture']['index']]['source']
+skin_url = data_url(Image.open(io.BytesIO(image_bytes(tex_i))), 1024, 'jpeg')
+
+# ---------------- extra parts skinned to the head: eyebrows (from the GLB) and hair (MakeHuman proxy) ----------------
+def tri_normals(Pp, Tt):
+    Nq = np.zeros_like(Pp)
+    fn_ = np.cross(Pp[Tt[:, 1]] - Pp[Tt[:, 0]], Pp[Tt[:, 2]] - Pp[Tt[:, 0]])
+    for k in range(3): np.add.at(Nq, Tt[:, k], fn_)
+    return Nq / (np.linalg.norm(Nq, axis=1, keepdims=True) + 1e-12)
+def outward(Pp, Tt, Nq, ctr):
+    if np.mean(np.sum((Pp - ctr) * Nq, 1)) < 0: return -Nq, Tt[:, [0, 2, 1]]
+    return Nq, Tt
+parts = []
+head_ctr = sk['HC']
+for mi, m in enumerate(J['meshes']):
+    if 'eyebrow' not in m['name']: continue
+    Pm, Im, _, _ = mesh_data(mi)
+    pe = W(Pm); te = Im.copy(); ne = tri_normals(pe, te); ne, te = outward(pe, te, ne, head_ctr)
+    pr = m['primitives'][0]; uve = acc(pr['attributes']['TEXCOORD_0'])
+    ti = J['textures'][J['materials'][pr['material']]['pbrMetallicRoughness']['baseColorTexture']['index']]['source']
+    parts.append({'n': 'brows', 'P': pe, 'N': ne, 'UV': uve, 'T': te, 'tex': data_url(Image.open(io.BytesIO(image_bytes(ti))).convert('RGBA'), 256, 'png'), 'alpha': 1})
+if HAIR:
+    import glob, os
+    from scipy.spatial import cKDTree as KD
+    base = np.array([list(map(float, l.split()[1:4])) for l in open(BASEOBJ) if l.startswith('v ')])
+    raw0 = acc(J['meshes'][body_mi]['primitives'][0]['attributes']['POSITION'])     # unmorphed, metres
+    tr = (raw0.min(0) + raw0.max(0)) / 2 - (base * 0.1).min(0) / 2 - (base * 0.1).max(0) / 2
+    dd, hm = KD(raw0).query(base * 0.1 + tr)
+    assert dd.max() < 1e-4, 'base mesh does not match the GLB body'
+    Vm = (P[hm] / 100.0 - tr) / 0.1                  # morphed body in base-mesh units
+    clo = glob.glob(os.path.join(HAIR, '*.mhclo'))[0]
+    sc = {}; refs = []; objf = None; inv_ = False
+    for l in open(clo):
+        w = l.split()
+        if not w or w[0].startswith('#'): continue
+        if w[0] in ('x_scale', 'y_scale', 'z_scale'): sc[w[0][0]] = (int(w[1]), int(w[2]), float(w[3]))
+        elif w[0] == 'obj_file': objf = w[1]
+        elif w[0] == 'verts': inv_ = True
+        elif inv_ and len(w) == 9: refs.append([float(x) for x in w])
+        elif inv_ and len(w) == 1 and w[0].isdigit(): refs.append([float(w[0]), 0, 0, 1, 0, 0, 0, 0, 0])
+    refs = np.array(refs); ri = refs[:, :3].astype(int); rw = refs[:, 3:6]; ro = refs[:, 6:9]
+    scale = np.array([abs(Vm[sc[a][0], k] - Vm[sc[a][1], k]) / sc[a][2] for k, a in enumerate('xyz')])
+    hv = (Vm[ri] * rw[:, :, None]).sum(1) + ro * scale
+    hcm = (hv * 0.1 + tr) * 100.0                        # same space as P (cm)
+    vs, vts, faces = [], [], []
+    for l in open(os.path.join(HAIR, objf)):
+        w = l.split()
+        if not w: continue
+        if w[0] == 'vt': vts.append([float(w[1]), float(w[2])])
+        elif w[0] == 'f':
+            c = [tuple(int(x) - 1 for x in t.split('/')[:2]) for t in w[1:]]
+            for k in range(1, len(c) - 1): faces.append((c[0], c[k], c[k + 1]))
+    assert len(hcm) == sum(1 for l in open(os.path.join(HAIR, objf)) if l.startswith('v '))
+    key_ = {}; hp, huv, ht = [], [], []
+    for f_ in faces:
+        tri = []
+        for (vi, ti) in f_:
+            if (vi, ti) not in key_: key_[(vi, ti)] = len(hp); hp.append(hcm[vi]); huv.append(vts[ti])
+            tri.append(key_[(vi, ti)])
+        ht.append(tri)
+    hp = W(np.array(hp)); ht = np.array(ht); huv = np.array(huv); huv[:, 1] = 1.0 - huv[:, 1]   # obj UV: origin bottom-left
+    hn = tri_normals(hp, ht); hn, ht = outward(hp, ht, hn, head_ctr)
+    png = [x for x in glob.glob(os.path.join(HAIR, '*.png')) if 'diffuse' in x.lower()] or glob.glob(os.path.join(HAIR, '*.png'))
+    parts.append({'n': 'hair', 'P': hp, 'N': hn, 'UV': huv, 'T': ht, 'tex': data_url(Image.open(png[0]).convert('RGBA'), 512, 'png'), 'alpha': 1})
+    print('hair', os.path.basename(clo), 'verts', len(hp), 'tris', len(ht))
 
 # ---------------- pack ----------------
 def b64(a): return base64.b64encode(np.ascontiguousarray(a).tobytes()).decode()
@@ -278,6 +352,11 @@ pk = {
     'LM': b64(np.round(np.clip(LM, -300, 300) * 100).astype(np.int16)),
     'RL': b64(np.round(np.clip(RL, -1, 1) * 127).astype(np.int8)),
     'IDX': b64(T.astype(np.uint16).ravel()),
+    'UV': b64(np.round(np.clip(UV, 0, 1) * 65535).astype(np.uint16)),
+    'tex': skin_url,
+    'parts': [{'n': q['n'], 'nv': int(len(q['P'])), 'P': b64(np.round(q['P'] * 100).astype(np.int16)), 'N': b64(np.round(q['N'] * 127).astype(np.int8)),
+               'UV': b64(np.round(np.clip(q['UV'], 0, 1) * 65535).astype(np.uint16)), 'IDX': b64(q['T'].astype(np.uint16).ravel()),
+               'tex': q['tex'], 'alpha': q['alpha'], 'bone': int(BONE['head'])} for q in parts],
     'feat': feat
 }
 assert np.abs(out).max() < 320 and nv < 65536

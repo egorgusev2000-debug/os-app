@@ -11,8 +11,10 @@
 2. Положить файл в `assets/models/` (сейчас там `makehuman-male.glb`).
 3. Выгрузить исходную позу движка (нужен Node.js и установленные зависимости проекта):
    `node tools/glb-to-engine/dump-engine-rest.js`
-4. Конвертировать (нужен Python 3 с numpy и scipy: `pip install numpy scipy`):
-   `python tools/glb-to-engine/convert.py assets/models/makehuman-male.glb tools/glb-to-engine/engine_rest.json src/data/body-male.js`
+4. Конвертировать (нужен Python 3 с numpy, scipy и Pillow: `pip install numpy scipy pillow`):
+   `python tools/glb-to-engine/convert.py assets/models/makehuman-male.glb tools/glb-to-engine/engine_rest.json src/data/body-male.js assets/models/hair/short02 assets/models/hm08-base.obj`
+   Последние два параметра — причёска MakeHuman (папка с `.mhclo`, `.obj` и `_diffuse.png`) и базовая сетка `hm08`,
+   по которой она подогнана. Без них тело будет без волос.
 5. `npm test` и посмотреть глазами несколько упражнений.
 
 Шаги 3–4 нужно повторять, если меняется скелет движка (`B`, `REST` в `src/engine/mannequin.js` и `src/engine/rig.js`).
@@ -24,7 +26,12 @@
 - конечности ставит по осям костей движка с растяжением вдоль кости, чтобы суставы совпали; торс выравнивает по бёдрам и плечам; голова сохраняет свой размер;
 - веса MakeHuman суммирует по 17 костям движка;
 - майку, шорты и волокна мышц для анатомического режима считает по этой же модели;
-- добавляет короткую стрижку (тонкая оболочка над черепом, линия роста волос — в `CL.w`);
-- положение глаз и бровей записывает в `feat` (их рисует `src/engine/webgl.js`).
+- сохраняет текстуру кожи из модели (JPEG 1024 px) и UV-развёртку, швы развёртки не склеивает;
+- брови из модели и причёску MakeHuman (`.mhclo`) записывает отдельными частями `parts` со своими текстурами, они крепятся к кости головы;
+- положение глаз записывает в `feat` (их рисует `src/engine/webgl.js`).
+
+Причёска `assets/models/hair/short02` и сетка `assets/models/hm08-base.obj` — из набора «MakeHuman system assets»
+(https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html) и репозитория MPFB 2, лицензия CC0.
+Другую причёску из набора можно подставить той же командой.
 
 Женской модели пока нет: `glbData()` в `src/engine/webgl.js` подключает только `window.OS3H_M`.
