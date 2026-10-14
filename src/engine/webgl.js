@@ -676,6 +676,7 @@ void main() {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         done(t); kick();
+        if (SK && SK.ready && SK.tex && SK.parts.every(q => q.tex) && opts.onReady) opts.onReady();
       };
       img.src = url;
     }
@@ -707,14 +708,14 @@ void main() {
     const tv = vao(gl, [[0, 3, TB.P], [1, 3, TB.N], [2, 1, TB.C], [3, 1, TB.R]], torsoIndex(NRW), true);
 
     if (!def.ease && !opts.raw) { const d2 = Object.assign({}, def, { ease: 'cr' }); delete d2._pr; def = d2; }
-    const pr = OS3D.prep(def);
-    const mod = opts.raw ? null : softMod(pr);
+    let pr = OS3D.prep(def);
+    let mod = opts.raw ? null : softMod(pr);
     const st = { yaw: opts.yaw, pitch: opts.pitch, mirror: !!opts.mirror, speed: opts.speed || 1, playing: !opts.paused && !reduceMotion, t: opts.t0 || 0, last: 0, raf: 0, dead: false, glow: !opts.noMuscles, ghost: !!opts.ghost, anat: !!opts.anatomy };
     let P = null;
     const readP = () => { const raw = opts.palette || OS3D.readPalette(canvas); const o = {}; Object.keys(raw).forEach(k => { o[k] = k === 'dark' ? Number(raw[k]) : lin(OS3D.palRGB({ x: raw[k] }).x); }); P = o; };
     readP();
     // animation bounds for framing
-    const bb = (() => {
+    const bounds = () => {
       const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
       const put = q => { for (let i = 0; i < 3; i++) { mn[i] = Math.min(mn[i], q[i]); mx[i] = Math.max(mx[i], q[i]); } };
       for (let i = 0; i <= 24; i++) {
@@ -727,7 +728,8 @@ void main() {
       }
       const c = mul(add(mn, mx), 0.5);
       return { mn, mx, c };
-    })();
+    };
+    let bb = bounds();
     const center = () => { const c = bb.c.slice(); if (st.mirror) c[0] = -c[0]; return c; };
     const cur = k => st[k] !== undefined ? st[k] : (def.cam && def.cam[k] !== undefined ? def.cam[k] : (k === 'yaw' ? 35 : 10));
     function camera(W, H) {
@@ -1039,6 +1041,14 @@ void main() {
       get anatomy() { return st.anat; },
       resetView() { st.yaw = opts.yaw; st.pitch = opts.pitch; kick(); },
       setTime(ms) { st.t = ms; kick(); },
+      // one renderer for many still pictures (thumbnails): swap the exercise, set the colours, draw right now
+      setDef(d) {
+        if (!d.ease && !opts.raw) { d = Object.assign({}, d, { ease: 'cr' }); delete d._pr; }
+        def = d; pr = OS3D.prep(def); mod = opts.raw ? null : softMod(pr); bb = bounds();
+      },
+      setPalette(raw) { opts.palette = raw; readP(); },
+      drawNow() { draw(); return canvas; },
+      get ready() { const k = ensureSkin(); return !!(k && k.tex && k.parts.every(q => q.tex)); },
       repaint() { readP(); kick(); },
       destroy() {
         st.dead = true; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0;

@@ -40,7 +40,7 @@ test('все вкладки открываются', async ({ page }, info) => {
   expect(errors).toEqual([]);
 });
 
-test('анкета проходится до конца', async ({ page }) => {
+test('анкета проходится до конца', async ({ page }, info) => {
   const errors = collectErrors(page);
   await page.goto('/');
   const click = sel => page.evaluate(s => document.querySelector(s).click(), sel);
@@ -50,6 +50,11 @@ test('анкета проходится до конца', async ({ page }) => {
   await click('[data-act="onb-age"][data-v="40"]');
   for (let i = 0; i < 6; i++) await click('[data-act="onb-next"]');
   await page.waitForTimeout(600);
+  // после анкеты — экран «Ваш план готов», с него можно начать или осмотреться
+  await expect(page.getByText('Ваш план готов')).toBeVisible();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-plan.png` });
+  await click('.planov [data-act="ov-back"]');
+  await page.waitForTimeout(400);
   await expect(page.locator('#overlay')).toBeHidden();
   expect(errors).toEqual([]);
 });

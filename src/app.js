@@ -2330,7 +2330,7 @@ function steps5(zid) {
 const thumb = (id, cls) => `<span class="thumb${cls ? ' ' + cls : ''}">${fig(id)}</span>`;
 function ring(v, max, r, sw) {
   const C = 2 * Math.PI * r, f = max ? clamp(v / max, 0, 1) : 0;
-  return `<svg viewBox="0 0 ${2 * r + sw * 2} ${2 * r + sw * 2}" aria-hidden="true"><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="${sw}"/><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--tier)" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - f)).toFixed(1)}"/></svg>`;
+  return `<svg viewBox="0 0 ${2 * r + sw * 2} ${2 * r + sw * 2}" aria-hidden="true"><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="${sw}"/><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--rc, var(--tier))" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - f)).toFixed(1)}"/></svg>`;
 }
 function toast(text) {
   const box = document.getElementById('toasts');
@@ -2363,9 +2363,38 @@ function paintThumb(cv) {
     ctx.beginPath(); ctx.moveTo(W / 2, H / 2 - s * 0.45); ctx.lineTo(W / 2, H / 2 + s * 0.1); ctx.moveTo(W / 2, H / 2 + s * 0.35); ctx.lineTo(W / 2, H / 2 + s * 0.4); ctx.stroke();
     return true;
   }
+  // the same 3D figure as everywhere else, drawn by one shared hidden renderer and copied in;
+  // until its skin and hair are loaded (or without WebGL) the quick canvas drawing stands in
+  const st = studio();
+  if (st && st.ready) {
+    try {
+      st.canvas.style.width = w + 'px'; st.canvas.style.height = h + 'px';
+      st.setPalette(OS3D.readPalette(cv)); st.setDef(def); st.setTime(stillMs(def));
+      ctx.clearRect(0, 0, W, H); ctx.drawImage(st.drawNow(), 0, 0, W, H);
+      cv.dataset.g = '1';
+      return true;
+    } catch (e) { }
+  }
   // a still frame costs about a millisecond, so thumbnails are drawn on demand without a cache
   try { OS3D.render(cv, def, stillMs(def), { P: palFor(cv)[1], pad: 0.1 }); } catch (e) { }
   return true;
+}
+// hidden WebGL canvas that paints thumbnails; once it is ready, the quick drawings are repainted in 3D
+function studio() {
+  if (TH.studio !== undefined) return TH.studio;
+  TH.studio = null;
+  if (!S.set.gl || typeof OS3G === 'undefined' || !OS3G.supported()) return null;
+  const cv = document.createElement('canvas');
+  cv.setAttribute('aria-hidden', 'true');
+  cv.style.cssText = 'position:fixed;left:-4000px;top:0;width:200px;height:200px;pointer-events:none';
+  document.body.appendChild(cv);
+  const first = Object.keys(MOVES)[0];
+  const m = OS3G.mount(cv, MOVES[first], { paused: true, interactive: false, pad: 0.1, onReady: () => {
+    document.querySelectorAll('canvas.tcv[data-p]:not([data-g])').forEach(c => { if (c.isConnected) paintThumb(c); });
+  } });
+  if (!m || !m.drawNow) { try { m && m.destroy(); } catch (e) { } cv.remove(); return null; }
+  TH.studio = m;
+  return m;
 }
 function hydrate(root) {
   if (!root) return;
@@ -2474,34 +2503,54 @@ function vToday() {
   const office = SESS.office ? `<section class="card office"><div class="oth">${thumb(SESS.office.items[0][0])}</div><div><h2 class="h3">Засиделись?</h2><p class="small muted">Разминка прямо у рабочего стола, ${esc(SESS.office.min)}.</p></div><button class="btn sm ghost" data-act="open-s" data-v="~office" aria-label="Открыть разминку для офиса">${ic('play')}</button></section>` : '';
   const lightRow = `<button class="lrow lightday" data-act="light" role="switch" aria-checked="${isLight() ? 'true' : 'false'}"><span>Лёгкий день<small>Устали, плохо спали или нездоровится — меньше подходов, без интервалов</small></span><span class="toggle" aria-hidden="true"></span></button>`;
   const pregNote = S.sex === 'f' && S.stage === 'preg' ? `<section class="card care"><b>Мягкий режим для беременности</b><p>Без прыжков, упражнений лёжа на животе и долгих лёжа на спине. Остановитесь и свяжитесь с врачом, если появились кровотечение, головокружение, боль в груди или животе, регулярные схватки.</p><button class="btn sm ghost" data-act="lesson" data-v="th_preg">Подробнее</button></section>` : '';
+  const weekText = wc.done ? `Сделано ${wc.done} из ${wc.total} занятий недели` : `На этой неделе ${wc.total} ${plural(wc.total, ['занятие', 'занятия', 'занятий'])}, сегодня ${tp.list.length}`;
+  const more = [
+    `<section class="card lesson mini">
+    <div class="lt">${ic('book')}<span class="lbl">Урок дня, одна минута</span></div>
+    <h2 class="h3">${esc(th.n)}</h2><p class="muted clamp3">${esc(th.p[0])}</p>
+    <div class="acts"><button class="btn sm ghost" data-act="lesson" data-v="${lid}">Читать</button>${S.read[lid] ? '<span class="tag">Прочитано</span>' : '<span class="xp">+10 XP</span>'}</div>
+  </section>`,
+    office,
+    S.focus.length ? '' : focus
+  ].filter(Boolean);
   return `<div class="hello"><h1 class="h2">${greet()}</h1><p class="muted">${esc(dayStr)}</p></div>
   ${hero}
   <section class="card lightcard">${lightRow}</section>
   ${pregNote}
-  <section class="slist" aria-label="План на сегодня">${rows}</section>
-  <section class="card weekcard">
-    <div class="ring">${ring(wc.done, wc.total, 32, 7)}<div class="rv">${wc.done}<small>из ${wc.total}</small></div></div>
-    <div><b class="h3">Неделя ${tp.week} из ${t.weeks}</b><div class="small muted">${stText}</div>${st.lvl < 25 ? `<div class="small muted">До уровня ${esc(VERT[st.lvl])}: ${lvlXP(st.lvl + 1) - st.xp} XP</div>` : ''}
-      <div class="wdays">${DAYS.map((n, i) => { const v = dayStatus(S.tier, tp.week, i); return `<div class="wd" data-v="${v}"${i === tp.day ? ' data-today="1"' : ''}><i>${v === 'all' ? ic('check') : ''}</i>${n}</div>`; }).join('')}</div>
-    </div>${weekTip}
-  </section>
-  ${focus}
-  ${gutCard()}
-  <section class="card lesson">
-    <div class="lt">${ic('book')}<span class="lbl">Урок дня, одна минута</span></div>
-    <h2 class="h3">${esc(th.n)}</h2><p class="muted clamp3">${esc(th.p[0])}</p>
-    <div class="acts"><button class="btn sm ghost" data-act="lesson" data-v="${lid}">Читать</button>${S.read[lid] ? '<span class="tag">Прочитано</span>' : '<span class="xp">+10 XP</span>'}</div>
-  </section>
-  <section class="card"><div class="sec-h tight"><h2 class="h3">Привычки дня</h2><span class="small muted" id="hab-n">${Object.keys(hd).length} из ${hab.length}</span></div>
+  ${dayRings()}
+  <section class="slist" id="sl" aria-label="План на сегодня">${rows}</section>
+  <section class="card" id="habcard"><div class="sec-h tight"><h2 class="h3">Привычки дня</h2><span class="small muted" id="hab-n">${Object.keys(hd).length} из ${hab.length}</span></div>
     <div class="habits">${hab.map(([h], i) => `<button class="hrow" data-act="habit" data-v="${i}" aria-pressed="${hd[i] ? 'true' : 'false'}"><span class="box">${ic('check')}</span><span>${esc(h)}</span><span class="xp">+5</span></button>`).join('')}</div>
   </section>
-  ${office}`;
+  ${gutCard()}
+  ${S.focus.length ? focus : ''}
+  <div class="sec-h"><h2>Ещё сегодня</h2></div>
+  <div class="hscroll">${more.join('')}</div>
+  <section class="card weekcard">
+    <div class="ring">${ring(wc.done, wc.total, 32, 7)}<div class="rv">${tp.week}<small>неделя</small></div></div>
+    <div><b class="h3">Неделя ${tp.week} из ${t.weeks}</b><div class="small muted">${weekText}</div><div class="small muted">${stText}</div>${st.lvl < 25 ? `<div class="small muted">До уровня ${esc(VERT[st.lvl])}: ${lvlXP(st.lvl + 1) - st.xp} XP</div>` : ''}
+      <div class="wdays">${DAYS.map((n, i) => { const v = dayStatus(S.tier, tp.week, i); return `<div class="wd" data-v="${v}"${i === tp.day ? ' data-today="1"' : ''}><i>${v === 'all' ? ic('check') : ''}</i>${n}</div>`; }).join('')}</div>
+    </div>${weekTip}
+  </section>`;
 }
+// three rings of the day: movement (today's sessions), nutrition (today's checklist), habits
+function dayRings() {
+  const tp = todayPlan(), hd = S.habits[today()] || {}, hab = HABITS[S.tier];
+  const g = typeof GUT !== 'undefined' ? GUT.summary() : null;
+  const R = [
+    ['move', 'Движение', tp.list.filter(x => x.done).length, tp.list.length, 'var(--tier)', 'sl'],
+    ['food', 'Питание', g ? g.items.filter(i => i.done).length : 0, g ? g.items.length : 0, 'var(--ok)', 'gutcard'],
+    ['hab', 'Привычки', Object.keys(hd).length, hab.length, 'var(--gold)', 'habcard']
+  ].filter(r => r[3]);
+  const all = R.every(r => r[2] >= r[3]);
+  return `<section class="card dayrings" aria-label="Итог дня">${R.map(([k, n, v, m, c, to]) => `<button class="dr" data-act="jump" data-v="${to}" style="--rc:${c}" aria-label="${n}: ${v} из ${m}"><span class="drr">${ring(v, m, 22, 6)}${v >= m ? `<i>${ic('check')}</i>` : ''}</span><b class="num">${v}<small>/${m}</small></b><small>${n}</small></button>`).join('')}${all ? '<p class="dr-all">День закрыт. Так держать!</p>' : ''}</section>`;
+}
+function refreshRings() { const c = document.querySelector('.dayrings'); if (c) c.outerHTML = dayRings(); }
 function gutCard() {
   if (typeof GUT === 'undefined') return '';
   const g = GUT.summary();
   const left = g.items.filter(i => !i.done), n = g.items.length - left.length;
-  return `<section class="card gutcard" style="--gc:${g.col}">
+  return `<section class="card gutcard" id="gutcard" style="--gc:${g.col}">
     <div class="sec-h tight"><div><div class="lbl">Питание и ЖКТ, день ${g.dayN}</div><h2 class="h3">Этап ${g.n}: ${esc(g.title)}</h2></div><span class="small muted num">${n} из ${g.items.length}</span></div>
     <div class="bar gbar" aria-hidden="true"><i style="width:${g.items.length ? Math.round(n / g.items.length * 100) : 0}%"></i></div>
     <div class="habits">${left.slice(0, 3).map(i => `<button class="hrow" data-act="gut-hab" data-v="${esc(i.k)}" aria-pressed="false"><span class="box">${ic('check')}</span><span>${esc(i.t)}</span><span class="xp">+3</span></button>`).join('') || '<p class="small muted">Все пункты дня отмечены.</p>'}</div>
@@ -2983,7 +3032,7 @@ function renderOv(keepScroll) {
   const top = OV.stack[OV.stack.length - 1];
   if (!top) { el.hidden = true; el.innerHTML = ''; document.body.style.overflow = ''; return; }
   const y = el.scrollTop;
-  const r = ({ zone: ovZone, lit: ovLit, lessons: ovLessons, onb: ovOnb })[top[0]](top[1]);
+  const r = ({ zone: ovZone, lit: ovLit, lessons: ovLessons, onb: ovOnb, plan: ovPlan })[top[0]](top[1]);
   el.innerHTML = r.html;
   el.hidden = false;
   document.body.style.overflow = 'hidden';
@@ -2993,6 +3042,26 @@ function renderOv(keepScroll) {
 }
 function backOv() { OV.stack.pop(); renderOv(); if (!OV.stack.length) render(); }
 const ovTop = (title, extra) => `<div class="ov-top"><div class="wrap"><button class="iconbtn" data-act="ov-back" aria-label="Назад">${ic('back')}</button><h2 id="ov-title">${esc(title)}</h2>${extra || ''}</div></div>`;
+
+// after the questionnaire: what the plan is, what today holds, one button to start
+function ovPlan() {
+  const t = TIERS[S.tier], tp = todayPlan(), wc = weekCounts(S.tier, tp.week), nx = tp.next;
+  const zones = S.focus.map(z => ZM[z] && ZM[z].n).filter(Boolean);
+  const who = S.sex === 'f' ? ({ preg: 'для беременности, мягкий режим', post: 'после родов', meno: 'в менопаузе' })[S.stage] || 'для женщин' : 'для мужчин';
+  const first = nx ? nx.s.items.map(x => x[0]).find(id => MOVES[id]) : null;
+  const html = `<div class="wrap ov-body planov">
+    <div class="plan-h"><div class="lbl">Ваш план готов</div><h1 class="h1">${esc(t.name)} уровень</h1><p class="muted">${esc(t.goal)}</p></div>
+    ${first ? `<div class="plan-fig">${thumb(first, 'big')}</div>` : ''}
+    <ul class="plan-l">
+      ${nx ? `<li>${ic('play')}<span><b>Сегодня: ${esc(nx.s.n)}</b><small>${sessMin(nx.s)}, ${nx.s.items.length} ${plural(nx.s.items.length, ['упражнение', 'упражнения', 'упражнений'])}</small></span></li>` : ''}
+      <li>${ic('calendar')}<span><b>${wc.total} ${plural(wc.total, ['занятие', 'занятия', 'занятий'])} в неделю, ${t.weeks} ${plural(t.weeks, ['неделя', 'недели', 'недель'])}</b><small>${esc(t.time)}</small></span></li>
+      ${zones.length ? `<li>${ic('target')}<span><b>Ваши зоны: ${esc(zones.join(', ').toLowerCase())}</b><small>Для каждой — лестница упражнений от мягких к сильным</small></span></li>` : ''}
+      <li>${ic('heart')}<span><b>Программа ${esc(who)}</b><small>Слушайте тело: если больно, возьмите «Лёгкий день» или замените упражнение</small></span></li>
+    </ul>
+    <div class="plan-a">${nx ? `<button class="btn wide" data-act="plan-go" data-v="${nx.key}~${nx.sid}">${ic('play')}Начать первую тренировку</button>` : ''}<button class="btn wide ghost" data-act="ov-back">Сначала осмотрюсь</button></div>
+  </div>`;
+  return { html };
+}
 
 function ovZone(zid) {
   const z = ZM[zid], s = zst(zid), on = S.focus.includes(zid), raw = S.zones[zid] || {};
@@ -3105,6 +3174,7 @@ function finishOnb(skip) {
   commit();
   applySex();
   OV.stack = OV.stack.filter(x => x[0] !== 'onb');
+  if (!skip) OV.stack.push(['plan']);
   renderOv();
   UI.tab = 'today';
   render();
@@ -3633,7 +3703,8 @@ document.addEventListener('click', ev => {
     case 'extra': { S.extra[v] = S.extra[v] ? 0 : 1; commit(); const on = !!S.extra[v]; document.querySelectorAll(`[data-act="extra"][data-v="${v}"]`).forEach(x => x.setAttribute('aria-checked', on ? 'true' : 'false')); toast((v === 'qg' ? 'Цигун' : 'Тайцзи') + (on ? ': добавлен в неделю' : ': убран из недели')); if (!ovOpen()) setTimeout(render, 220); break; }
     case 'onb-sex': UI.onb.sex = v; if (v !== 'f') UI.onb.stage = ''; pressOne(b, '[data-act="onb-sex"]'); break;
     case 'onb-x': { UI.onb.extra[v] = UI.onb.extra[v] ? 0 : 1; b.setAttribute('aria-pressed', UI.onb.extra[v] ? 'true' : 'false'); break; }
-    case 'gut-hab': if (typeof GUT !== 'undefined') { GUT.toggleToday(v); const c = document.querySelector('.gutcard'); if (c) c.outerHTML = gutCard(); } break;
+    case 'gut-hab': if (typeof GUT !== 'undefined') { GUT.toggleToday(v); const c = document.querySelector('.gutcard'); if (c) c.outerHTML = gutCard(); refreshRings(); } break;
+    case 'jump': { const el = document.getElementById(v); if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); break; }
     case 'gut-go': if (typeof GUT !== 'undefined' && v === 'food') GUT.openFood('cmenu'); gutFood(v); break;
     case 'tier': S.tier = v; UI.day = todayIdx(); commit(); render(); break;
     case 'week': S.week[S.tier] = clamp(curWeek() + Number(v), 1, TIERS[S.tier].weeks); commit(); render(); if (UI.tab === 'today') toast('Неделя ' + S.week[S.tier] + ' из ' + TIERS[S.tier].weeks); break;
@@ -3660,11 +3731,11 @@ document.addEventListener('click', ev => {
     case 'more': UI[v] = !UI[v]; render(); break;
     case 'lessons': openOv('lessons'); break;
     case 'lit': openOv('lit'); break;
-    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' || v === 'anat') setTimeout(render, 220); break;
+    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' && TH.studio !== undefined) { try { TH.studio.destroy(); TH.studio.canvas.remove(); } catch (e) { } TH.studio = undefined; } if (v === 'gl' || v === 'anat') setTimeout(render, 220); break;
     case 'reset': UI.resetAsk = true; render(); break;
     case 'reset-no': UI.resetAsk = false; render(); break;
     case 'reset-yes': doReset(); break;
-    case 'habit': toggleHabit(Number(v), b); break;
+    case 'habit': toggleHabit(Number(v), b); refreshRings(); break;
     case 'focus': toggleFocus(v, b); break;
     case 'zone': closeSheet(); if (PL.open) break; openOv('zone', v); break;
     case 'z-up': { const s = zst(v), z = ZM[v], nx = Math.min(z.steps.length - 1, s.step + 1); S.zones[v] = { step: nx, n: 0, best: Math.max(nx, (S.zones[v] || {}).best || 0) }; progressed(); toast(z.n + ': шаг ' + (S.zones[v].step + 1) + ', «' + z.steps[S.zones[v].step].n + '»'); renderOv(true); break; }
@@ -3676,6 +3747,7 @@ document.addEventListener('click', ev => {
     case 'fz': UI.fz = v; pressOne(b, '[data-act="fz"]'); renderLibList(); break;
     case 'ft': UI.ft = v; pressOne(b, '[data-act="ft"]'); renderLibList(); break;
     case 'ov-back': backOv(); break;
+    case 'plan-go': { backOv(); const [key, sid] = v.split('~'); const s0 = SESS[sid]; if (s0) openPlayer({ kind: 's', sid, key: key || null, title: s0.n }, s0.items, true); break; }
     case 'onb-next': if (UI.onb.step >= 7) finishOnb(false); else if (UI.onb.step === 1 && !UI.onb.sex) toast('Выберите, кто будет заниматься'); else { onbLeave(UI.onb); UI.onb.step++; renderOv(); } break;
     case 'onb-age': UI.onb.age = v; pressOne(b, '[data-act="onb-age"]'); break;
     case 'onb-stage': UI.onb.stage = v; pressOne(b, '[data-act="onb-stage"]'); break;

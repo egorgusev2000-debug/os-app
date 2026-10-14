@@ -702,3 +702,32 @@ form.numinput { flex-wrap: wrap; }
 .ctl2 button svg { width: 20px; height: 20px; }
 .ctl2 button[aria-pressed="true"] { background: color-mix(in srgb, var(--tier) 16%, var(--surface)); color: var(--tier); }
 .ctl2 .cb span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+/* today: three rings of the day */
+.dayrings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 14px 10px; }
+.dayrings .dr { display: grid; justify-items: center; gap: 2px; min-height: 44px; }
+.dayrings .drr { position: relative; width: 64px; height: 64px; }
+.dayrings .drr svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.dayrings .drr i { position: absolute; inset: 0; display: grid; place-items: center; color: var(--rc); }
+.dayrings .drr i svg { width: 22px; height: 22px; transform: none; }
+.dayrings b { font-family: var(--f-display); font-weight: 600; font-size: 20px; line-height: 1.1; margin-top: 4px; }
+.dayrings b small { font-family: var(--f-body); font-size: 13px; color: var(--muted); font-weight: 500; }
+.dayrings .dr > small { font-size: 13px; color: var(--muted); }
+.dayrings .dr-all { grid-column: 1 / -1; text-align: center; font-weight: 600; color: var(--ok); padding-top: 6px; }
+/* today: a horizontal strip of extra cards */
+.hscroll { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 82%); gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 16px 6px; margin-inline: -16px; scrollbar-width: none; }
+.hscroll::-webkit-scrollbar { display: none; }
+.hscroll > * { scroll-snap-align: start; margin: 0; }
+.hscroll .office { grid-template-columns: 56px minmax(0, 1fr); }
+.hscroll .office .thumb { width: 56px; }
+.hscroll .office > .btn { grid-column: 1 / -1; justify-self: start; }
+.hscroll .pick-z { display: grid; gap: 10px; align-content: space-between; }
+/* plan screen after the questionnaire */
+.planov { display: grid; gap: 18px; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: 32px; }
+.planov .plan-h { display: grid; gap: 6px; }
+.planov .plan-fig .thumb.big { width: 100%; max-width: 360px; aspect-ratio: 1; margin: 0 auto; display: block; border-radius: 24px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+.planov .plan-l { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.planov .plan-l li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; align-items: start; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); }
+.planov .plan-l svg { width: 22px; height: 22px; color: var(--tier); margin-top: 1px; }
+.planov .plan-l b { display: block; font-weight: 600; }
+.planov .plan-l small { color: var(--muted); font-size: 13.5px; }
+.planov .plan-a { display: grid; gap: 10px; }
