@@ -612,3 +612,29 @@
 }
 .gut .plink.plink2r { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; }
 .gut .th summary .tile { margin: -2px 0; }
+
+/* one style with the rest of the app: the same cards, pill buttons, numbers in the body font */
+:root { --f-mono: var(--f-body); }
+.gut .card { border: 0; border-radius: 20px; padding: 16px; box-shadow: var(--shadow); }
+.gut .hero { border-radius: 20px; }
+.gut .cta { border-radius: 999px; min-height: 48px; padding: 12px 22px; font-size: 16px; }
+.gut .hero .acts .cta { padding: 11px 18px; }
+.gut .btn2 { border-radius: 999px; min-height: 38px; padding: 8px 16px; }
+.gut .eyebrow { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600; }
+.gut .h2 { font-weight: 600; font-size: 19px; }
+.gut .sheet-h h2 { font-weight: 600; }
+.gut .small { font-size: 13.5px; }
+/* «Мой этап»: today's checklist as a small ring */
+.gut .hero .now { grid-template-columns: auto minmax(0, 1fr) auto; }
+.gut .nowring { --p: 0; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--tier) calc(var(--p) * 1%), color-mix(in srgb, var(--tier) 16%, var(--surface-2)) 0); }
+.gut .nowring i { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); font-style: normal; font-weight: 700; font-size: 14px; color: var(--tier); }
+.gut .nowring svg { width: 18px; height: 18px; }
+/* «Что беспокоит» folds once something is ticked; 5R opens on demand */
+.gut .rh { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.gut .rh .btn2 { flex: none; }
+.gut .r5card > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.gut .r5card > summary > span:first-child { display: grid; gap: 2px; min-width: 0; }
+.gut .r5card .chev { width: 10px; height: 10px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); flex: none; margin: 0 6px 4px 0; transition: transform .2s; }
+.gut .r5card[open] .chev { transform: rotate(-135deg); margin-bottom: -4px; }
+.gut .r5in { display: grid; gap: 10px; margin-top: 12px; }
+.gut .hero .acts .cta { font-size: 15px; }

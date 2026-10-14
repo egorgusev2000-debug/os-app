@@ -690,6 +690,7 @@ form.numinput { flex-wrap: wrap; }
 .gut .gnav button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 .gut .gnav button[aria-pressed="true"] svg { color: var(--tier); }
 .lrow[disabled] { opacity: .45; }
+@media (max-width: 400px) { .gut .gnav button { font-size: 11px; padding-inline: 0; } }
 @media (max-width: 360px) { .gut .gnav button { font-size: 10.5px; } }
 
 /* comfortable tap targets: at least 44 x 44 px to press (Apple HIG), even where the visible control is smaller */

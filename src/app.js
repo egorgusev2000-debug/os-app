@@ -1310,6 +1310,7 @@ function buildKit() {
     tab: 'path', day: TODAY, fseg: 'cmenu', menu: 'm14', mday: 0, plate: 'stomach',
     ptab: 'list', kcat: 'all', cmeal: 'bf', bsel: [], mix: null
   };
+  let symOpen = false; // the long list of complaints is folded once something is ticked
 
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function obj(v) { return v && typeof v === 'object' && !Array.isArray(v) ? v : null; }
@@ -1394,10 +1395,11 @@ function buildKit() {
     const route = routeProtos();
     const st = SM[state.stage];
     const dayN = Math.max(1, daysBetween(state.stageStart, TODAY) + 1);
-    const intro = `<section class="hero"><span class="eyebrow">Восстановление ЖКТ по этапам</span><h2>Шаг за шагом — от тарелки к ремиссии</h2>
+    const ti = todayItems(TODAY), dd = state.done[TODAY] || {}, tn = ti.filter(i => dd[i.k]).length;
+    const intro = `<section class="hero"><span class="eyebrow">Мой этап</span><h2>Этап ${st.n}: ${esc(st.t)}</h2>
       <p class="lead">Сначала питание и режим, затем слизистая, функции органов, микрофлора — и жизнь в ремиссии. Нервная система — на всём пути.</p>
       ${heroMap()}
-      <div class="now">${tile(STAGE_ART[st.id], STAGE_COL[st.id], 'solid')}<span style="min-width:0"><b>Этап ${st.n} · ${esc(st.t)}</b><small>день ${dayN} · ${esc(st.dur)}</small></span></div>
+      <div class="now">${tile(STAGE_ART[st.id], STAGE_COL[st.id], 'solid')}<span style="min-width:0"><b>День ${dayN} · ${esc(st.dur)}</b><small>Сегодня отмечено ${tn} из ${ti.length}</small></span>${ti.length ? `<span class="nowring" style="--p:${Math.round(tn / ti.length * 100)}"><i>${tn === ti.length ? CHECK : tn}</i></span>` : ''}</div>
       <div class="acts"><button class="cta" data-act="g:tab" data-v="today">Что делать сегодня</button><button class="btn2" data-act="g:stage" data-v="${st.id}">Открыть этап</button></div>
       <p class="note">Протоколы — вспомогательный инструмент и не заменяют консультацию врача. При острых состояниях, сильных болях, кровотечениях или приёме лекарств согласуйте изменения с лечащим врачом.</p></section>`;
 
@@ -1413,8 +1415,10 @@ function buildKit() {
       ps.sort((a, b) => SM[sid].p.indexOf(a) - SM[sid].p.indexOf(b));
       return `<div class="rstage" style="--c:${STAGE_COL[sid]}"><span class="rnum">${SM[sid].n}</span><div style="min-width:0"><b>${esc(SM[sid].t)}</b><div class="rps">${ps.map((p, i) => `<button class="rp" data-act="g:proto" data-v="${p}"><small>${i === 0 ? 'основной' : i === 1 ? 'поддерживающий' : 'следом'}</small>${esc(PM[p].t)}</button>`).join('')}</div></div></div>`;
     }).join('')}<p class="note">Поддерживающий протокол подключают не раньше чем через 2 недели после основного. Нервная система — параллельно.</p></div>` : `<p class="empty">Отметьте, что вас беспокоит, — здесь появится ваш маршрут по этапам.</p>`;
-    const routeCard = `<section class="card" style="display:grid;gap:12px"><div><span class="eyebrow">Мой маршрут</span><h2 class="h2">Что беспокоит</h2></div>
-      <div class="pchips sylist">${SYMPTOMS.map(([id, t]) => `<button class="pc" data-act="g:sym" data-v="${id}" aria-pressed="${!!state.sym[id]}">${esc(t)}</button>`).join('')}</div>${routeList}</section>`;
+    const open = symOpen || !chosen;
+    const syms = open ? `<div class="pchips sylist">${SYMPTOMS.map(([id, t]) => `<button class="pc" data-act="g:sym" data-v="${id}" aria-pressed="${!!state.sym[id]}">${esc(t)}</button>`).join('')}</div>` : '';
+    const routeCard = `<section class="card" style="display:grid;gap:12px"><div class="rh"><div><span class="eyebrow">Мой маршрут</span><h2 class="h2">Что беспокоит</h2></div>${chosen ? `<button class="btn2" data-act="g:symopen" aria-expanded="${open}">${open ? 'Готово' : 'Изменить'}</button>` : ''}</div>
+      ${chosen && !open ? `<p class="small muted">Отмечено: ${chosen}. Маршрут ниже подобран под это.</p>` : ''}${!chosen && !symOpen ? `<p class="small muted">Отметьте, что беспокоит, — приложение соберёт ваш маршрут по этапам и подскажет протоколы.</p><button class="cta" data-act="g:symopen">Отметить, что беспокоит</button>` : syms}${chosen ? routeList : ''}</section>`;
 
     const cur = STAGE_ORDER.indexOf(state.stage);
     const timeline = `<section class="card" style="display:grid;gap:4px"><span class="eyebrow">Этапы</span>
@@ -1426,7 +1430,7 @@ function buildKit() {
         return `<li style="--c:${STAGE_COL[s.id]};${nx ? '--c2:' + STAGE_COL[nx.id] : ''}"><button class="srow2" data-act="g:stage" data-v="${s.id}" data-s="${status}">${tile(STAGE_ART[s.id], STAGE_COL[s.id], status === 'next' ? '' : 'solid').replace('</span></span>', `</span><i>${status === 'done' ? CHECK : s.n}</i></span>`)}<span class="sbody"><b>${esc(s.t)}</b><small>${esc(s.s)}</small><span class="sdur">${esc(s.dur)}</span>${chips ? `<span class="schips">${chips}</span>` : ''}</span></button></li>`;
       }).join('')}</ol></section>`;
 
-    const r5 = `<section class="card" style="display:grid;gap:10px"><div><span class="eyebrow">Программа 5R</span><h2 class="h2">Как этапы складываются в систему</h2></div>${r5Table()}<button class="btn2" data-act="g:theory" data-v="t_5r" style="justify-self:start">Подробнее</button></section>`;
+    const r5 = `<details class="card r5card"><summary><span><span class="eyebrow">Программа 5R</span><b class="h2">Как этапы складываются в систему</b></span><span class="chev" aria-hidden="true"></span></summary><div class="r5in">${r5Table()}<button class="btn2" data-act="g:theory" data-v="t_5r" style="justify-self:start">Подробнее</button></div></details>`;
     return `<div class="screen">${intro}${routeCard}${timeline}${r5}</div>`;
   }
   function r5Table() {
@@ -1765,7 +1769,8 @@ function buildKit() {
         if (nx) { state.stage = nx; state.stageStart = TODAY; }
         commit(); openSheet(stageSheet(state.stage)); render(); break;
       }
-      case 'sym': if (state.sym[v]) delete state.sym[v]; else state.sym[v] = 1; commit(); render(); break;
+      case 'sym': if (state.sym[v]) delete state.sym[v]; else state.sym[v] = 1; symOpen = true; commit(); render(); break;
+      case 'symopen': symOpen = !symOpen; render(); break;
       case 'proto': openSheet(protoSheet(v)); break;
       case 'setp': {
         const r = b.dataset.r;
