@@ -147,7 +147,22 @@ uniform vec3 uEye; uniform vec3 uL1; uniform vec3 uL2; uniform vec3 uSky; unifor
 uniform float uAlpha; uniform float uShine; uniform float uWrap; uniform float uGlowAmt;
 uniform vec4 uMus[12]; uniform vec4 uMusD[12]; uniform int uNM2;
 uniform int uLook; uniform vec3 uRim; uniform float uDarkBg;
+uniform vec4 uCapA[18]; uniform vec4 uCapB[18]; uniform int uNCap;
 out vec4 frag;
+// soft shadow from nearby body parts (each part is a capsule): armpits, the gap between the thighs, a knee folded to the chest
+float bodyAO(vec3 P, vec3 N) {
+  float o = 0.0;
+  for (int i = 0; i < 18; i++) {
+    if (i >= uNCap) break;
+    vec3 a = uCapA[i].xyz, ab = uCapB[i].xyz - a;
+    float t = clamp(dot(P - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+    float r = mix(uCapA[i].w, uCapB[i].w, t);
+    vec3 d = a + ab * t - P; float l = length(d);
+    if (l < r * 1.05) continue;
+    o += clamp(dot(N, d / l), 0.0, 1.0) * (r * r) / (l * l);
+  }
+  return clamp(1.0 - o * 1.7, 0.3, 1.0);
+}
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   vec3 base = uCol;
@@ -188,7 +203,8 @@ void main() {
   vec3 H = normalize(uL1 + V);
   float sp = pow(max(dot(N, H), 0.0), 34.0) * uShine;
   float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-  vec3 c = base * (hemi * 0.5 + d1 * 0.98 + d2 * 0.22) + sp + fr * 0.16 * uSky;
+  float ao = uNCap > 0 ? bodyAO(vW, N) : 1.0;
+  vec3 c = base * (hemi * 0.5 * ao + d1 * mix(0.98, 0.98 * ao, 0.55) + d2 * 0.22 * ao) + sp * ao + fr * 0.16 * uSky * ao;
   if (uLook == 1) {
     // studio: warm key, cool fill, rim light along the outline, light passing through skin at the shadow edge
     float isSkin = uMode == 4 ? step(0.5, 1.0 - step(0.001, distance(base, uSkin))) : 0.0;
@@ -200,7 +216,7 @@ void main() {
     float rim = pow(1.0 - max(dot(N, V), 0.0), 2.6) * max(0.0, dot(N, uRim) + 0.35);
     vec3 sss = vec3(0.85, 0.28, 0.16) * isSkin * (kw - k) * 0.55;
     float spec = pow(max(dot(N, H), 0.0), mix(18.0, 46.0, isSkin)) * mix(0.05, 0.16, isSkin);
-    c = base * (amb + key * 1.05 + fill + sss) + spec + rim * mix(vec3(0.95, 0.97, 1.0), uSky, 0.4) * mix(0.30, 0.55, uDarkBg);
+    c = base * (amb * ao + key * 1.05 * mix(1.0, ao, 0.55) + fill * ao + sss) + spec * ao + ao * rim * mix(vec3(0.95, 0.97, 1.0), uSky, 0.4) * mix(0.30, 0.55, uDarkBg);
     c *= 1.0 + 0.12 * vR;
     c *= mix(0.80, 1.0, smoothstep(0.0, 18.0, vW.y));
   } else if (uLook == 2) {
@@ -210,7 +226,7 @@ void main() {
     clay = mix(clay * 1.25, clay * 0.9, step(0.001, distance(base, uSkin)) * 0.6);
     float kw = max(0.0, (dot(N, uL1) + 0.6) / 1.6);
     float rim = pow(1.0 - max(dot(N, V), 0.0), 2.4);
-    c = clay * (hemi * 0.55 + kw * 0.85 + max(0.0, dot(N, uL2)) * 0.18) + rim * mix(0.22, 0.45, uDarkBg) * vec3(0.92, 0.96, 1.0);
+    c = clay * (hemi * 0.55 * ao + kw * 0.85 * mix(1.0, ao, 0.55) + max(0.0, dot(N, uL2)) * 0.18 * ao) + ao * rim * mix(0.22, 0.45, uDarkBg) * vec3(0.92, 0.96, 1.0);
     c *= 1.0 + 0.16 * vR;
     c *= mix(0.78, 1.0, smoothstep(0.0, 18.0, vW.y));
   }
@@ -442,6 +458,7 @@ void main() {
 
   // figure look: 0 classic, 1 studio, 2 clean sculpture (window.OS3_LOOK while we compare)
   const LOOK = () => (typeof window !== 'undefined' && window.OS3_LOOK) | 0;
+  const AO_ON = () => !(typeof window !== 'undefined' && window.OS3_AO === 0);
 
   /* ---------- motion: follow-through and breathing ---------- */
   const LAG = ['hd', 'nk', 'eL', 'eR', 'wL', 'wR'];
@@ -509,7 +526,48 @@ void main() {
     for (let i = 0; i < nv * 4; i++) { BI[i] = BI8[i]; BW[i] = BW8[i] / 255; CL[i] = CL16[i] / 100; LM[i] = LM16[i] / 100; }
     for (let i = 0; i < nv; i++) RL[i] = RL8[i] / 127;
     const IDX = dec(src.IDX, Uint16Array);
+    tankTop(P, CL, nv);
+    smoothRegions(CL, IDX, nv);
     return { P, N, BI, BW, CL, LM, RL, IDX, nv, nt: IDX.length / 3, glb: src.feat };
+  }
+  // The tank top is cut by clean shapes on the body at rest (male MakeHuman body, centimetres):
+  // round armholes from the shoulder to the armpit, a soft scoop at the neck, the hem at the shorts.
+  function tankTop(P, CL, nv) {
+    const ell = (x, y, z, c, r) => Math.hypot((x - c[0]) / r[0], (y - c[1]) / r[1], (z - c[2]) / r[2]) - 1;
+    for (let v = 0; v < nv; v++) {
+      const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
+      const orig = CL[v * 4];
+      if (y < 100 || y > 156 || Math.abs(x) > 24) continue;
+      const arm = ell(Math.abs(x), y, z, [20.5, 136.5, -0.5], [7.5, 11.5, 11]);
+      // the scoop is deep at the front and shallow at the back
+      const back = Math.min(1, Math.max(0, (2 - z) / 8));
+      const neck = ell(x, y, z, [0, 152.5 + 3 * back, 3.5], [9 + 0.5 * back, 12.5 - 3 * back, 15]);
+      const shoulder = 150.5 - 0.22 * Math.max(0, Math.abs(x) - 5);
+      const top = Math.min(arm * 6, neck * 6, (shoulder - y) / 4, Math.max(orig, (15.5 - Math.abs(x)) / 4));
+      CL[v * 4] = Math.max(-0.5, Math.min(0.5, top));
+    }
+  }
+  // The top, shorts and hair borders are where these per-vertex values cross zero. Raw, they zigzag along the
+  // triangles; a few rounds of averaging with the neighbours turn each border into a clean line.
+  function smoothRegions(CL, IDX, nv) {
+    const nb = Array.from({ length: nv }, () => new Set());
+    for (let i = 0; i < IDX.length; i += 3) {
+      const a = IDX[i], b = IDX[i + 1], c = IDX[i + 2];
+      nb[a].add(b); nb[a].add(c); nb[b].add(a); nb[b].add(c); nb[c].add(a); nb[c].add(b);
+    }
+    const lists = nb.map(s => Array.from(s));
+    const tmp = new Float32Array(nv);
+    [0, 2].forEach(ch => {
+      for (let it = 0; it < 6; it++) {
+        for (let v = 0; v < nv; v++) {
+          const L = lists[v];
+          if (!L.length) { tmp[v] = CL[v * 4 + ch]; continue; }
+          let s = 0; for (let k = 0; k < L.length; k++) s += CL[L[k] * 4 + ch];
+          tmp[v] = CL[v * 4 + ch] * 0.5 + s / L.length * 0.5;
+        }
+        for (let v = 0; v < nv; v++) CL[v * 4 + ch] = tmp[v];
+      }
+    });
   }
   function requestMesh(sex) {
     if (MESH[sex]) return MESH[sex];
@@ -716,14 +774,34 @@ void main() {
         gl.uniform3fv(g.u.uSky, sky); gl.uniform3fv(g.u.uGround, ground); gl.uniform3fv(g.u.uGlow, P.glow);
         gl.uniform1f(g.u.uAlpha, alpha); gl.uniform1f(g.u.uWrap, 0.32);
         gl.uniform1i(g.u.uLook, LOOK()); gl.uniform3fv(g.u.uRim, Lr); gl.uniform1f(g.u.uDarkBg, dark);
+        gl.uniform4fv(g.u.uCapA, CAPA); gl.uniform4fv(g.u.uCapB, CAPB); gl.uniform1i(g.u.uNCap, AO_ON() ? NCAP : 0);
         gl.uniform4fv(g.u.uMus, MU); gl.uniform4fv(g.u.uMusD, MD); gl.uniform4fv(g.u.uMusX, MX); gl.uniform1i(g.u.uNM2, mus.length);
         gl.uniform1f(g.u.uGlowAmt, anat ? 0.6 + 0.4 * (s.a || 0) : 0.35 + 0.65 * (s.a || 0));
         gl.uniform1i(g.u.uAnat, anat ? 1 : 0); gl.uniform3fv(g.u.uHot, AN.hot); gl.uniform3fv(g.u.uTend, AN.ten);
         gl.uniform1f(g.u.uFib, 0); gl.uniform2f(g.u.uTen, 0, 0);
       };
       const skin = ensureSkin();
+      // body parts as capsules for the soft shadow between them
+      const CAPA = new Float32Array(72), CAPB = new Float32Array(72);
+      let NCAP = 0;
+      const capsOf = sk0 => {
+        const R = OS3D.RAD, L = [[sk0.P0, sk0.L1, 12.5, 12], [sk0.L1, sk0.C7, 12.5, 11.5], [sk0.C7, sk0.HC, 5.4, 5.4], [sk0.HC, sk0.HC, 9.5, 9.5]];
+        ['L', 'R'].forEach(sd => {
+          L.push([sk0['S' + sd], sk0['E' + sd], R.ua[0], R.ua[1]], [sk0['E' + sd], sk0['W' + sd], R.fa[0], R.fa[1]], [sk0['W' + sd], sk0['T' + sd], R.hand[0], R.hand[1]]);
+          L.push([sk0['H' + sd], sk0['K' + sd], R.th[0], R.th[1]], [sk0['K' + sd], sk0['A' + sd], R.sn[0], R.sn[1]], [sk0['Heel' + sd], sk0['Toe' + sd], R.foot[0], R.foot[1]]);
+        });
+        NCAP = 0;
+        L.forEach(([a, b, ra, rb]) => {
+          if (!a || !b || NCAP >= 18) return;
+          const A = X(a), B = X(b), i = NCAP * 4;
+          CAPA[i] = A[0]; CAPA[i + 1] = A[1]; CAPA[i + 2] = A[2]; CAPA[i + 3] = ra * 0.92;
+          CAPB[i] = B[0]; CAPB[i + 1] = B[1]; CAPB[i + 2] = B[2]; CAPB[i + 3] = rb * 0.92;
+          NCAP++;
+        });
+      };
       const drawAll = (model0, alpha) => {
         const sk0 = model0.sk;
+        capsOf(sk0);
         if (skin) {
           const gsk = pg.skin; setCommon(gsk, alpha);
           boneDQ(sk0, skin.rest, DQ);
