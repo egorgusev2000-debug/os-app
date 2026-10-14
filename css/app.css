@@ -695,3 +695,10 @@ form.numinput { flex-wrap: wrap; }
 .lrow .gl { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; }
 .lrow .gl > svg { width: 20px; height: 20px; color: var(--muted); }
 .lrow .gl small { flex-basis: 100%; padding-left: 30px; }
+/* exercise sheet: figure controls in a labelled row under the figure */
+.ctl2 { display: flex; justify-content: space-between; gap: 4px; margin: 10px 0 2px; }
+.ctl2 .cb { flex: 1 1 0; display: grid; justify-items: center; gap: 4px; min-width: 0; }
+.ctl2 button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--ink-2); font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ctl2 button svg { width: 20px; height: 20px; }
+.ctl2 button[aria-pressed="true"] { background: color-mix(in srgb, var(--tier) 16%, var(--surface)); color: var(--tier); }
+.ctl2 .cb span { font-size: 11px; color: var(--muted); white-space: nowrap; }

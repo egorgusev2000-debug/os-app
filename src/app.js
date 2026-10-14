@@ -2856,8 +2856,15 @@ function openEx(id, dose) {
   const steps = EX_STEPS[id] || [];
   const tags = `<div class="tagrow">${tape(e.t)}${e.z.map(z => `<span class="tag">${esc(ZM[z].n)}</span>`).join('')}<span class="tag">${esc(KIND[e.k] || '')}</span>${e.eq.filter(q => EQ[q] && q !== 'mat').slice(0, 2).map(q => `<span class="tag">${esc(EQ[q].n)}</span>`).join('')}</div>`;
   const html = sheetHead(e.n, tags) +
-    (def ? `<div class="stage exstage"><canvas id="ex-cv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas><span class="hint">${ic('rotate')}Поверните пальцем</span>
-      <div class="ctl"><button data-act="exc" data-v="play" aria-label="${reduceMotion ? 'Смотреть' : 'Пауза'}">${ic(reduceMotion ? 'play' : 'pause')}</button><button class="spd" data-act="exc" data-v="speed" aria-label="Скорость">1×</button><button data-act="exc" data-v="mirror" aria-pressed="false" aria-label="Другая сторона">${ic('mirror')}</button><button data-act="exc" data-v="glow" aria-pressed="true" aria-label="Работающие мышцы">${ic('glow')}</button><button data-act="exc" data-v="ghost" aria-pressed="false" aria-label="Исходное положение">${ic('ghost')}</button><button data-act="exc" data-v="anat" aria-pressed="${!!S.set.anat}" aria-label="Анатомический режим: мышцы">${ic('anat')}</button></div></div>` : '') +
+    (def ? `<div class="stage exstage"><canvas id="ex-cv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas><span class="hint">${ic('rotate')}Поверните пальцем</span></div>
+      <div class="ctl2">${[
+        ['play', reduceMotion ? 'play' : 'pause', 'Пауза', reduceMotion ? 'Смотреть' : 'Пауза', null],
+        ['speed', null, 'Темп', 'Скорость', null],
+        ['mirror', 'mirror', 'Сторона', 'Другая сторона', 'false'],
+        ['glow', 'glow', 'Мышцы', 'Работающие мышцы', 'true'],
+        ['ghost', 'ghost', 'Старт', 'Исходное положение', 'false'],
+        ['anat', 'anat', 'Анатомия', 'Анатомический режим: мышцы', String(!!S.set.anat)]
+      ].map(([v, icn, lbl, aria, pr]) => `<div class="cb"><button${v === 'speed' ? ' class="spd"' : ''} data-act="exc" data-v="${v}"${pr !== null ? ` aria-pressed="${pr}"` : ''} aria-label="${aria}">${icn ? ic(icn) : '1×'}</button><span aria-hidden="true">${lbl}</span></div>`).join('')}</div>` : '') +
     `<div class="dose">${ic('timer')}<span>${esc(dose || doseText(id, e.dose))}</span></div>
     <div class="blk"><h3>Как делать</h3><ol class="steps">${e.how.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
     ${e.err && e.err.length ? `<div class="blk"><h3>Частые ошибки</h3><ul class="errs">${e.err.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>` : ''}
