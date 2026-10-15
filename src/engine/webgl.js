@@ -251,20 +251,23 @@ void main() {
     c *= 1.0 + 0.16 * vR;
     c *= mix(0.78, 1.0, smoothstep(0.0, 18.0, vW.y));
   } else if (uLook == 3) {
-    // hologram: dark blue glass lit from above, a bright icy outline, muscle relief; shorts a shade darker
-    float ndv = max(dot(N, V), 0.0);
-    float rim = pow(1.0 - ndv, 4.0);
-    float k = pow(max(0.0, (dot(N, uL1) + 0.15) / 1.15), 2.0);
-    float upw = clamp(N.y, 0.0, 1.0);
-    float sp3 = pow(max(dot(N, H), 0.0), 54.0);
-    // a cool back light draws a bright line along the far edge of each muscle
-    float back = pow(1.0 - ndv, 2.0) * max(0.0, dot(N, uRim));
-    float det = (uTexOn == 1 && uMode == 4) ? clamp(dot(skinC, vec3(0.3, 0.55, 0.15)) * 2.4, 0.0, 1.0) : 0.8;
-    vec3 deep = vec3(0.001, 0.006, 0.045), blue = vec3(0.01, 0.12, 1.0), ice = vec3(0.4, 0.72, 1.0);
-    c = deep + blue * (0.03 + 0.58 * k * mix(1.0, ao, 0.8) + 0.1 * upw * ao) * mix(0.8, 1.15, det);
-    c += ice * (rim * 1.3 * mix(0.45, 1.0, ao) + sp3 * 0.75 * ao + back * 0.45 * ao);
-    c *= 1.0 + 0.9 * vR;
-    c = mix(c, c * vec3(0.45, 0.6, 0.95), clothB * 0.7);
+    // neon X-ray: the body stays dark inside, light runs along the outline and over the tops of the muscles
+    float ndv = max(dot(N, V), 0.0), fr = 1.0 - ndv;
+    float edge = pow(fr, 2.2), line = pow(fr, 6.5);
+    // main light from above and behind the figure: shoulders, the top of the back and the arms catch it
+    vec3 Lb = normalize(vec3(0.0, 0.9, 0.0) - V * 0.75);
+    float kb = pow(max(0.0, dot(N, Lb)), 2.0);
+    float k = pow(max(0.0, dot(N, uL1)), 6.0);
+    float top = pow(clamp(N.y, 0.0, 1.0), 3.0);
+    float sp3 = pow(max(dot(N, H), 0.0), 80.0);
+    float back = pow(fr, 1.6) * max(0.0, dot(N, uRim));
+    float det = (uTexOn == 1 && uMode == 4) ? clamp(dot(skinC, vec3(0.3, 0.55, 0.15)) * 2.6, 0.0, 1.2) : 0.8;
+    vec3 deep = vec3(0.0, 0.0015, 0.012), blue = vec3(0.01, 0.13, 1.0), cyan = vec3(0.42, 0.76, 1.0);
+    c = deep + blue * (0.006 + (0.8 * kb + 0.2 * k + 0.05 * top) * ao * det + 0.65 * edge * mix(0.4, 1.0, ao) + 0.35 * back * ao);
+    c += cyan * kb * kb * 0.12 * ao;
+    c += cyan * (line * 0.85 + sp3 * 0.7 * ao);
+    c *= 1.0 + 1.1 * vR;
+    c = mix(c, c * vec3(0.5, 0.62, 0.9), clothB * 0.6);
   }
   c *= mix(0.74, 1.0, smoothstep(0.0, 14.0, vW.y));
   // muscle tops a little lighter, grooves between muscles a little darker
