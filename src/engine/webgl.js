@@ -120,7 +120,7 @@ void main() {
   const VS_SKIN = `#version 300 es
 precision highp float;
 in vec3 aPos; in vec3 aNor; in vec4 aBI; in vec4 aBW; in vec4 aCl; in vec4 aLm; in float aRel; in vec2 aUV;
-uniform mat4 uVP; uniform vec4 uDQ[34]; uniform float uMir;
+uniform mat4 uVP; uniform vec4 uDQ[34]; uniform float uMir; uniform float uRefY; uniform float uInfl;
 ${HEAD_VARY}
 vec3 qrot(vec4 q, vec3 v) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
 void main() {
@@ -134,6 +134,8 @@ void main() {
   vec3 p = qrot(r, aPos) + 2.0 * (r.w * d.xyz - d.w * r.xyz + cross(r.xyz, d.xyz));
   vec3 n = qrot(r, aNor);
   p.x *= uMir; n.x *= uMir;
+  p += normalize(n) * uInfl;
+  if (uRefY < 0.0) { p.y = -0.5 - p.y; n.y = -n.y; }
   vW = p; vN = n; vT = 0.0; vU = aPos; vC = 1.0; vR = aRel; vQ = vec2(0.0, -1.0); vCl = aCl; vLm = aLm; vUV = aUV;
   gl_Position = uVP * vec4(p, 1.0);
 }`;
@@ -147,7 +149,7 @@ uniform vec3 uCol; uniform vec3 uCol2; uniform float uSplit; uniform int uMode;
 uniform vec3 uEye; uniform vec3 uL1; uniform vec3 uL2; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uGlow;
 uniform float uAlpha; uniform float uShine; uniform float uWrap; uniform float uGlowAmt;
 uniform vec4 uMus[12]; uniform vec4 uMusD[12]; uniform int uNM2;
-uniform int uLook; uniform vec3 uRim; uniform float uDarkBg;
+uniform int uLook; uniform vec3 uRim; uniform float uDarkBg; uniform int uRefl;
 uniform vec4 uCapA[18]; uniform vec4 uCapB[18]; uniform int uNCap;
 out vec4 frag;
 // soft shadow from nearby body parts (each part is a capsule): armpits, the gap between the thighs, a knee folded to the chest
@@ -167,7 +169,7 @@ float bodyAO(vec3 P, vec3 N) {
 vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   vec3 base = uCol;
-  float skinW = 0.0;
+  float skinW = 0.0, clothB = 0.0;
   // skin colour: the painted MakeHuman skin when it is loaded, else the flat palette colour
   vec3 skinC = uSkin;
   if (uTexOn == 1 && uMode == 4) skinC = pow(texture(uTex, vUV).rgb, vec3(2.2)) * 0.92;
@@ -191,7 +193,7 @@ void main() {
       float wTop = smoothstep(-w.x, w.x, vCl.x) * smoothstep(-w.y, w.y, vCl.y);
       float wBot = (1.0 - wTop) * smoothstep(-w.x, w.x, vCl.z) * (1.0 - smoothstep(-w.y, w.y, vCl.y));
       base = mix(mix(skinC, uCol2, wBot), uCol, wTop);
-      skinW = (1.0 - wTop) * (1.0 - wBot);
+      skinW = (1.0 - wTop) * (1.0 - wBot); clothB = wBot;
     }
     if (vCl.w != 0.0) { if (vCl.w < 0.0) discard; base = uHair; }
     fq = vLm.xy; ften = vLm.zw; fon = uAnat == 1 ? 1.0 : 0.0;
@@ -207,6 +209,14 @@ void main() {
     base = mix(base, uTend, tend * 0.75);
   }
   vec3 N = normalize(vN); vec3 V = normalize(uEye - vW);
+  // glow shell around the hologram: only its far side shows, as a halo just outside the outline
+  if (uRefl == 2) {
+    float nv = dot(N, V);
+    if (nv > 0.0) discard;
+    float h = pow(clamp(-nv, 0.0, 1.0), 1.4) * 0.5 * uAlpha;
+    frag = vec4(vec3(0.16, 0.42, 1.0) * h, h * 0.8);
+    return;
+  }
   if (uMode == 5 && dot(N, V) < 0.0) N = -N;
   float d1 = max(0.0, (dot(N, uL1) + uWrap) / (1.0 + uWrap));
   float d2 = max(0.0, dot(N, uL2));
@@ -240,6 +250,21 @@ void main() {
     c = clay * (hemi * 0.55 * ao + kw * 0.85 * mix(1.0, ao, 0.55) + max(0.0, dot(N, uL2)) * 0.18 * ao) + ao * rim * mix(0.22, 0.45, uDarkBg) * vec3(0.92, 0.96, 1.0);
     c *= 1.0 + 0.16 * vR;
     c *= mix(0.78, 1.0, smoothstep(0.0, 18.0, vW.y));
+  } else if (uLook == 3) {
+    // hologram: dark blue glass lit from above, a bright icy outline, muscle relief; shorts a shade darker
+    float ndv = max(dot(N, V), 0.0);
+    float rim = pow(1.0 - ndv, 4.0);
+    float k = pow(max(0.0, (dot(N, uL1) + 0.15) / 1.15), 2.0);
+    float upw = clamp(N.y, 0.0, 1.0);
+    float sp3 = pow(max(dot(N, H), 0.0), 54.0);
+    // a cool back light draws a bright line along the far edge of each muscle
+    float back = pow(1.0 - ndv, 2.0) * max(0.0, dot(N, uRim));
+    float det = (uTexOn == 1 && uMode == 4) ? clamp(dot(skinC, vec3(0.3, 0.55, 0.15)) * 2.4, 0.0, 1.0) : 0.8;
+    vec3 deep = vec3(0.001, 0.006, 0.045), blue = vec3(0.01, 0.12, 1.0), ice = vec3(0.4, 0.72, 1.0);
+    c = deep + blue * (0.03 + 0.58 * k * mix(1.0, ao, 0.8) + 0.1 * upw * ao) * mix(0.8, 1.15, det);
+    c += ice * (rim * 1.3 * mix(0.45, 1.0, ao) + sp3 * 0.75 * ao + back * 0.45 * ao);
+    c *= 1.0 + 0.9 * vR;
+    c = mix(c, c * vec3(0.45, 0.6, 0.95), clothB * 0.7);
   }
   c *= mix(0.74, 1.0, smoothstep(0.0, 14.0, vW.y));
   // muscle tops a little lighter, grooves between muscles a little darker
@@ -259,13 +284,20 @@ void main() {
     // the whole working muscle is filled, with a soft edge
     g = smoothstep(0.1, 0.5, g * uGlowAmt) * (1.0 - tend * 0.8);
     c = mix(c, uHot * (0.55 + 0.45 * d1) + sp * 0.6, g * 0.9) + uHot * g * 0.12;
+  } else if (uLook == 3) {
+    // hologram: working muscles shine brighter instead of changing colour
+    g = clamp(g * uGlowAmt, 0.0, 0.85);
+    c += uGlow * g * (0.16 + 0.22 * d1);
   } else {
     g = clamp(g * uGlowAmt, 0.0, 0.85);
     c = mix(c, uGlow * (0.72 + 0.28 * d1), g * 0.72) + uGlow * g * 0.1;
   }
   if (uLook > 0) c = aces(c * 1.15);
   c = pow(max(c, 0.0), vec3(1.0 / 2.2));
-  frag = vec4(c * uAlpha, uAlpha);
+  float al = uAlpha;
+  // reflection in the glossy floor fades with depth
+  if (uRefl == 1) { al *= exp(min(vW.y + 0.25, 0.0) / 16.0) * 0.38; c *= vec3(0.55, 0.75, 1.0); }
+  frag = vec4(c * al, al);
 }`;
   const VS_FLOOR = `#version 300 es
 precision highp float;
@@ -277,13 +309,14 @@ void main() { vec3 p = vec3(uCtr.x + aP.x * uR, -0.25, uCtr.z + aP.y * uR); vW =
 precision highp float;
 in vec3 vW;
 uniform vec3 uCtr; uniform float uR; uniform vec3 uFloor; uniform vec3 uMatCol; uniform vec4 uMat; uniform int uHasMat;
-uniform vec4 uCA[30]; uniform vec4 uCB[30]; uniform int uNC; uniform vec3 uLs; uniform float uDark;
+uniform vec4 uCA[30]; uniform vec4 uCB[30]; uniform int uNC; uniform vec3 uLs; uniform float uDark; uniform int uHolo;
 out vec4 frag;
 float seg2(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0); return length(pa - ba * h); }
 void main() {
   vec2 q = vW.xz - uCtr.xz; float rr = length(q) / uR;
   float a = (1.0 - smoothstep(0.3, 1.0, rr)) * 0.85;
   vec3 col = uFloor;
+  float matIn = 0.0, matLine = 0.0;
   if (uHasMat == 1) {
     vec2 c = vec2(0.5 * (uMat.x + uMat.y), 0.5 * (uMat.z + uMat.w));
     vec2 h = vec2(0.5 * (uMat.y - uMat.x), 0.5 * (uMat.w - uMat.z));
@@ -293,6 +326,7 @@ void main() {
     float edge = smoothstep(-3.0, 0.0, sd) * inside;
     col = mix(col, uMatCol * (1.0 - 0.18 * edge), inside);
     a = max(a, inside * 0.97);
+    matIn = inside; matLine = smoothstep(-1.4, 0.0, sd) * (1.0 - smoothstep(0.0, 1.4, sd));
   }
   float ao = 0.0, sh = 1.0;
   vec3 p = vec3(vW.x, 0.0, vW.z);
@@ -310,6 +344,16 @@ void main() {
     sh *= mix(1.0, s, 0.62 * clamp(1.0 - hgt / 220.0, 0.25, 1.0));
   }
   ao = clamp(ao * 0.55, 0.0, 0.8);
+  if (uHolo == 1) {
+    // near-black glossy floor, a blue pool of light under the figure, the mat as a thin glowing outline
+    vec3 hc = vec3(0.003, 0.008, 0.024) + vec3(0.02, 0.09, 0.42) * exp(-rr * rr * 9.0) * 0.55;
+    hc += vec3(0.008, 0.03, 0.12) * matIn + vec3(0.1, 0.35, 1.0) * matLine * 0.55;
+    hc *= (1.0 - ao * 0.8) * (0.45 + 0.55 * sh);
+    float ha = (1.0 - smoothstep(0.25, 1.0, rr)) * 0.96;
+    hc = pow(max(hc, 0.0), vec3(1.0 / 2.2));
+    frag = vec4(hc * ha, ha);
+    return;
+  }
   col *= (1.0 - ao) * (0.58 + 0.42 * sh);
   a = max(a, (1.0 - sh) * 0.42 + ao * 0.65);
   col = pow(max(col, 0.0), vec3(1.0 / 2.2));
@@ -467,9 +511,11 @@ void main() {
   function mmul(a, b) { const o = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; o[i * 4 + j] = s; } return o; }
   const colMajor3 = F => [F[0], F[3], F[6], F[1], F[4], F[7], F[2], F[5], F[8]];
 
-  // figure look: 1 studio (default), 0 classic, 2 clean sculpture; window.OS3_LOOK switches it for comparisons
+  // figure look: 1 studio (default), 0 classic, 2 clean sculpture, 3 hologram; window.OS3_LOOK switches it
   const LOOK = () => { const v = typeof window !== 'undefined' ? window.OS3_LOOK : undefined; return v === undefined ? 1 : v | 0; };
   const HAIR_TINT = [1, 1, 1];
+  // working muscles in the hologram light up icy white-blue
+  const HOLO_GLOW = [0.55, 0.85, 1.0];
   const AO_ON = () => !(typeof window !== 'undefined' && window.OS3_AO === 0);
 
   /* ---------- motion: follow-through and breathing ---------- */
@@ -776,7 +822,8 @@ void main() {
       const L2 = norm(add(add(mul(cam.right, 0.7), mul(cam.up, 0.25)), mul(cam.dir, -0.35)));
       const Ls = norm(add(add(mul(cam.right, -0.22), [0, 1, 0]), mul(cam.dir, 0.18)));
       const Lr = norm(add(add(mul(cam.right, 0.6), mul(cam.up, 0.45)), mul(cam.dir, 1.0)));
-      const dark = P.dark ? 1 : 0;
+      const look = st.anat && LOOK() === 3 ? 1 : LOOK(), holo = look === 3;
+      const dark = P.dark || holo ? 1 : 0;
       const sky = dark ? [0.42, 0.46, 0.5] : [0.92, 0.95, 0.97], ground = dark ? [0.16, 0.15, 0.14] : [0.42, 0.38, 0.35];
       gl.enable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.CULL_FACE);
       // floor with mat, soft shadow and contact occlusion
@@ -798,7 +845,7 @@ void main() {
         occ.slice(0, 30).forEach(p => { const a = X(p.a), b = X(p.b); A.push(a[0], a[1], a[2], 0.5 * (p.ra + p.rb)); B.push(b[0], b[1], b[2], 0); });
         while (A.length < 120) { A.push(0, -999, 0, 0); B.push(0, -999, 0, 0); }
         gl.uniform4fv(g.u.uCA, A); gl.uniform4fv(g.u.uCB, B); gl.uniform1i(g.u.uNC, Math.min(30, occ.length));
-        gl.uniform3fv(g.u.uLs, Ls); gl.uniform1f(g.u.uDark, dark);
+        gl.uniform3fv(g.u.uLs, Ls); gl.uniform1f(g.u.uDark, dark); gl.uniform1i(g.u.uHolo, holo ? 1 : 0);
         gl.depthMask(false);
         gl.bindVertexArray(fq.o); gl.drawElements(gl.TRIANGLES, fq.n, gl.UNSIGNED_SHORT, 0);
         gl.depthMask(true);
@@ -819,9 +866,9 @@ void main() {
         gl.useProgram(g.p);
         gl.uniformMatrix4fv(g.u.uVP, false, cam.VP);
         gl.uniform3fv(g.u.uEye, cam.eye); gl.uniform3fv(g.u.uL1, L1); gl.uniform3fv(g.u.uL2, L2);
-        gl.uniform3fv(g.u.uSky, sky); gl.uniform3fv(g.u.uGround, ground); gl.uniform3fv(g.u.uGlow, P.glow);
+        gl.uniform3fv(g.u.uSky, sky); gl.uniform3fv(g.u.uGround, ground); gl.uniform3fv(g.u.uGlow, holo ? HOLO_GLOW : P.glow);
         gl.uniform1f(g.u.uAlpha, alpha); gl.uniform1f(g.u.uWrap, 0.32);
-        gl.uniform1i(g.u.uLook, LOOK()); gl.uniform3fv(g.u.uRim, Lr); gl.uniform1f(g.u.uDarkBg, dark);
+        gl.uniform1i(g.u.uLook, look); gl.uniform3fv(g.u.uRim, Lr); gl.uniform1f(g.u.uDarkBg, dark); gl.uniform1i(g.u.uRefl, 0);
         gl.uniform4fv(g.u.uCapA, CAPA); gl.uniform4fv(g.u.uCapB, CAPB); gl.uniform1i(g.u.uNCap, AO_ON() ? NCAP : 0);
         gl.uniform4fv(g.u.uMus, MU); gl.uniform4fv(g.u.uMusD, MD); gl.uniform4fv(g.u.uMusX, MX); gl.uniform1i(g.u.uNM2, mus.length);
         gl.uniform1f(g.u.uGlowAmt, anat ? 0.6 + 0.4 * (s.a || 0) : 0.35 + 0.65 * (s.a || 0));
@@ -847,18 +894,21 @@ void main() {
           NCAP++;
         });
       };
-      const drawAll = (model0, alpha) => {
+      // pass: 0 the figure, 1 its reflection in the floor, 2 the glow shell (hologram)
+      const drawAll = (model0, alpha, pass) => {
         const sk0 = model0.sk;
         capsOf(sk0);
         if (skin) {
           const gsk = pg.skin; setCommon(gsk, alpha);
           boneDQ(sk0, skin.rest, DQ);
           gl.uniform4fv(gsk.u.uDQ, DQ); gl.uniform1f(gsk.u.uMir, mir ? -1 : 1);
+          gl.uniform1f(gsk.u.uRefY, pass === 1 ? -1 : 1); gl.uniform1f(gsk.u.uInfl, pass === 2 ? 2.2 : 0); gl.uniform1i(gsk.u.uRefl, pass || 0);
           gl.uniform3fv(gsk.u.uCol, anat ? AN.mus : P.top); gl.uniform3fv(gsk.u.uCol2, P.bottom); gl.uniform3fv(gsk.u.uSkin, P.skin); gl.uniform3fv(gsk.u.uHair, P.hair);
           gl.uniform1i(gsk.u.uMode, 4); gl.uniform1f(gsk.u.uShine, anat ? 0.14 : 0.1);
           gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, skin.tex); gl.uniform1i(gsk.u.uTex, 0);
           gl.uniform1i(gsk.u.uTexOn, skin.tex && !anat ? 1 : 0);
           gl.bindVertexArray(skin.vao.o); gl.drawElements(gl.TRIANGLES, skin.n, skin.type, 0);
+          if (pass) { gl.uniform1f(gsk.u.uRefY, 1); gl.uniform1f(gsk.u.uInfl, 0); gl.uniform1i(gsk.u.uRefl, 0); return; }
           skin.parts.forEach(pt => {
             if (!pt.tex) return;
             gl.bindTexture(gl.TEXTURE_2D, pt.tex); gl.uniform1i(gsk.u.uMode, 5); gl.uniform1i(gsk.u.uTexOn, 1);
@@ -991,7 +1041,19 @@ void main() {
         const g0 = OS3D.frameModel(pr, 0, def).model;
         gl.depthMask(false); drawAll(g0, 0.16); gl.depthMask(true);
       }
+      if (holo && skin) {
+        // the figure mirrored in the glossy floor, then a clean depth buffer for the figure itself
+        gl.colorMask(false, false, false, false); drawAll(model, 1, 1);
+        gl.colorMask(true, true, true, true); gl.depthFunc(gl.LEQUAL); drawAll(model, 1, 1); gl.depthFunc(gl.LESS);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+      }
       drawAll(model, 1);
+      if (holo && skin) {
+        // halo: the far side of a slightly larger copy, hidden behind the body, shows only around the outline
+        gl.depthMask(false);
+        drawAll(model, 1, 2);
+        gl.depthMask(true);
+      }
       gl.bindVertexArray(null);
       return s;
     }

@@ -1870,7 +1870,7 @@ const S = {
   v: 5, onb: 0, start: '', tier: 'b', places: Object.assign({}, PRESETS[1][2]), ovr: {}, week: { b: 1, a: 1, p: 1 },
   done: {}, owned: {}, log: [], xpArch: 0, zones: {}, focus: [], ach: {}, read: {}, habits: {}, tlog: {}, lday: null,
   sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {},
-  set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1 }, updatedAt: 0
+  set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1, holo: 1 }, updatedAt: 0
 };
 const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false, prefs: false, allAch: false, allTests: false };
 
@@ -1886,7 +1886,7 @@ function apply(d) {
   S.week = Object.assign({ b: 1, a: 1, p: 1 }, isObj(d.week) ? d.week : {});
   S.log = Array.isArray(d.log) ? d.log.filter(x => isObj(x) && typeof x.d === 'string').slice(-LOG_MAX) : [];
   S.focus = Array.isArray(d.focus) ? d.focus.filter(z => ZM[z]) : [];
-  S.set = Object.assign({ voice: 1, count: 1, sound: 1, vib: 1, gl: 1, anat: 0 }, isObj(d.set) ? d.set : {});
+  S.set = Object.assign({ voice: 1, count: 1, sound: 1, vib: 1, gl: 1, anat: 0, holo: 1 }, isObj(d.set) ? d.set : {});
   S.sex = d.sex === 'f' || d.sex === 'm' ? d.sex : '';
   S.age = d.age === '40' || d.age === '60' ? d.age : '';
   S.stage = ['preg', 'post', 'meno'].includes(d.stage) ? d.stage : '';
@@ -2848,6 +2848,7 @@ function vProgress() {
     <button class="lrow" data-act="bike" role="switch" aria-checked="${S.gear && S.gear.bike ? 'true' : 'false'}"><span>Есть велосипед<small>Кардио на улице — на велосипеде</small></span><span class="toggle" aria-hidden="true"></span></button>
     ${[['qg', 'Цигун', 'Ба Дуань Цзинь два раза в неделю'], ['tc', 'Тайцзи', 'Основы два раза в неделю']].map(([k, n, d]) => `<button class="lrow" data-act="extra" data-v="${k}" role="switch" aria-checked="${S.extra[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}
     <button class="lrow" data-act="set" data-v="gl" role="switch" aria-checked="${S.set.gl ? 'true' : 'false'}"><span>Новая 3D-графика<small>Объёмная фигура со светом и тенями. Если телефон тормозит — выключите</small></span><span class="toggle" aria-hidden="true"></span></button>
+    <button class="lrow" data-act="set" data-v="holo" role="switch" aria-checked="${S.set.holo ? 'true' : 'false'}"${S.set.gl ? '' : ' disabled'}><span>Голограмма<small>Синяя светящаяся фигура на тёмном фоне. Выключите — будет фигура с кожей и в одежде</small></span><span class="toggle" aria-hidden="true"></span></button>
     <button class="lrow" data-act="set" data-v="anat" role="switch" aria-checked="${S.set.anat ? 'true' : 'false'}"${S.set.gl ? '' : ' disabled'}><span>Анатомический режим<small>Фигура в виде мышц, работающие мышцы — красные. Работает с новой 3D-графикой</small></span><span class="toggle" aria-hidden="true"></span></button>
   </section>
   <div class="sec-h"><h2>Настройки тренировки</h2></div>
@@ -2880,7 +2881,14 @@ function vFood() { return `<div class="gut" id="gut-root"></div>`; }
 
 /* ---------- render ---------- */
 const reduceMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
+// figure look: the glowing blue hologram on a dark stage (default) or the studio figure with skin and clothes
+function figLook() {
+  const on = !!(S.set.gl && S.set.holo);
+  window.OS3_LOOK = on ? 3 : undefined;
+  document.documentElement.dataset.fig = on ? 'holo' : '';
+}
 function render() {
+  figLook();
   kill('main');
   cancelAnimationFrame(BM.anim);
   if (TH.io) TH.io.disconnect(); // drop canvases from the previous screen; unpainted ones are observed again below
@@ -3415,10 +3423,13 @@ function swapCands(cur, orig) {
   const e = EXM[cur], f = S.sex === 'f';
   const ban = f && S.stage === 'preg' ? Object.assign({}, JUMP_SUB, PREG_SUB) : f && S.stage === 'post' ? JUMP_SUB : {};
   const used = new Set(PL.items.map(x => x[0])), place = plPlace(), ez = e.z || [];
-  return EX.filter(c => !used.has(c.id) && c.id !== orig && !(c.id in ban) && exOk(c) && KGRP(c.k) === KGRP(e.k) && c.k !== 'habit' && TORD[c.t] <= TORD[S.tier] && eqOk(c, place))
+  const all = EX.filter(c => !used.has(c.id) && c.id !== orig && !(c.id in ban) && exOk(c) && KGRP(c.k) === KGRP(e.k) && c.k !== 'habit' && TORD[c.t] <= TORD[S.tier] && eqOk(c, place))
     .map(c => { const zs = (c.z || []).filter(z => ez.includes(z)); return { c, zs, sc: (c.k === e.k ? 3 : 0) + zs.length * 2 + (c.t === e.t ? 1 : 0) + (MOVES[c.id] ? 1 : 0) }; })
-    .filter(x => x.zs.length || (!ez.length && x.c.k === e.k))
-    .sort((a, b) => b.sc - a.sc).slice(0, 8);
+    .filter(x => x.zs.length || x.c.k === e.k)
+    .sort((a, b) => b.sc - a.sc);
+  // similar by zone first; the same kind without a shared zone only when there are too few of those
+  const near = all.filter(x => x.zs.length || !ez.length);
+  return (near.length >= 3 ? near : near.concat(all.filter(x => !near.includes(x)))).slice(0, 8);
 }
 function openSwap() {
   const b = PL.blocks[PL.i];
@@ -3841,7 +3852,7 @@ document.addEventListener('click', ev => {
     case 'more': UI[v] = !UI[v]; render(); break;
     case 'lessons': openOv('lessons'); break;
     case 'lit': openOv('lit'); break;
-    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' && TH.studio !== undefined) { try { TH.studio.destroy(); TH.studio.canvas.remove(); } catch (e) { } TH.studio = undefined; } if (v === 'gl' || v === 'anat') setTimeout(render, 220); break;
+    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' && TH.studio !== undefined) { try { TH.studio.destroy(); TH.studio.canvas.remove(); } catch (e) { } TH.studio = undefined; } if (v === 'gl' || v === 'anat' || v === 'holo') setTimeout(render, 220); break;
     case 'reset': UI.resetAsk = true; render(); break;
     case 'reset-no': UI.resetAsk = false; render(); break;
     case 'reset-yes': doReset(); break;

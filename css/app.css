@@ -808,3 +808,7 @@ form.numinput { flex-wrap: wrap; }
   .player[data-phase="work"] .cue { grid-area: cue; padding-inline: 16px; }
   .player[data-phase="work"] .pbot { grid-area: bot; padding: 10px 24px 20px; }
 }
+/* hologram look: a dark stage behind the glowing figure, in the light theme too */
+html[data-fig="holo"] .stage, html[data-fig="holo"] .thumb { background: radial-gradient(120% 95% at 50% 36%, #0B1C42 0%, #050B1B 55%, #02040A 100%); --fig-dark: 1; }
+html[data-fig="holo"] .stage .hint { color: #8FA6C9; }
+html[data-fig="holo"] .thumb .noanim { color: #6F8BB8; }

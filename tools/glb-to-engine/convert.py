@@ -59,6 +59,38 @@ body_mi = next(i for i, m in enumerate(J['meshes']) if m['name'] == 'base')
 P, I, Jn, Wt = mesh_data(body_mi)
 UV0 = acc(J['meshes'][body_mi]['primitives'][0]['attributes']['TEXCOORD_0'])
 
+# optional body shape like the MakeHuman sliders: MH_MUSCLE and MH_WEIGHT from 0 to 1 (0.5 = as exported).
+# Uses the CC0 macro targets universal-male-young-*.target from assets/models/targets (needs base.obj).
+import os as _os0
+MUS, WGT = float(_os0.environ.get('MH_MUSCLE', '0.5')), float(_os0.environ.get('MH_WEIGHT', '0.5'))
+# more targets with their weights, e.g. MH_EXTRA="torso-vshape-incr:0.5,l-upperarm-muscle-incr:0.8"
+EXTRA = [(q.split(':')[0], float(q.split(':')[1])) for q in _os0.environ.get('MH_EXTRA', '').split(',') if ':' in q]
+if (MUS != 0.5 or WGT != 0.5 or EXTRA) and BASEOBJ:
+    TDIR = _os0.environ.get('MH_TARGETS', _os0.path.join(_os0.path.dirname(GLB), 'targets'))
+    def side(v, lo, hi):
+        t = abs(v - 0.5) / 0.5
+        return [('average', 1 - t), (hi if v > 0.5 else lo, t)]
+    base0 = np.array([list(map(float, l.split()[1:4])) for l in open(BASEOBJ) if l.startswith('v ')])
+    unm = acc(J['meshes'][body_mi]['primitives'][0]['attributes']['POSITION'])
+    tr0 = (unm.min(0) + unm.max(0)) / 2 - (base0 * 0.1).min(0) / 2 - (base0 * 0.1).max(0) / 2
+    dd0, bi = cKDTree(base0 * 0.1 + tr0).query(unm)
+    assert dd0.max() < 1e-4, 'base mesh does not match the GLB body'
+    D = np.zeros_like(base0)
+    for mn, mw in side(MUS, 'min', 'max'):
+        for wn, ww in side(WGT, 'min', 'max'):
+            w = mw * ww
+            if w < 1e-6: continue
+            fn = _os0.path.join(TDIR, 'universal-male-young-%smuscle-%sweight.target' % (mn, wn))
+            for l in open(fn):
+                q = l.split()
+                if len(q) == 4 and not l.startswith('#'): D[int(q[0])] += w * np.array(list(map(float, q[1:])))
+    for tn, w in EXTRA:
+        for l in open(_os0.path.join(TDIR, tn + '.target')):
+            q = l.split()
+            if len(q) == 4 and not l.startswith('#'): D[int(q[0])] += w * np.array(list(map(float, q[1:])))
+    P = P + D[bi] * 0.1 * 100.0
+    print('shape: muscle %.2f weight %.2f' % (MUS, WGT), ' '.join('%s %.2f' % e for e in EXTRA))
+
 # weld by position for the surface work; the UV seams come back at the end (the skin texture needs them)
 key = np.round(P * 100).astype(np.int64)
 _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
