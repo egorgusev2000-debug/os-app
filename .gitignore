@@ -1,6 +1,7 @@
 node_modules/
 test-results/
 playwright-report/
+dist/
 tools/glb-to-engine/engine_rest.json
 __pycache__/
 .DS_Store

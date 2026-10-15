@@ -97,13 +97,20 @@ test('в тренировке можно сделать легче и замен
   expect(errors).toEqual([]);
 });
 
-// Приложение Claude на телефоне не загружает файл больше примерно 1 МБ (тело 1,5 МБ не открывалось), поэтому каждый файл меньше 900 КБ.
-test('каждый файл приложения меньше 900 КБ', async ({}, info) => {
+// На claude.ai публикуем одним файлом: приложение Claude на iPhone не загружает дополнительные файлы страницы.
+// Собираем его так же, как перед публикацией, и проверяем, что он работает сам по себе.
+test('приложение одним файлом открывается и рисует фигуру', async ({ page }, info) => {
   test.skip(info.project.name !== '360-light', 'достаточно одного раза');
-  const fs = require('fs'), path = require('path');
-  const root = path.join(__dirname, '..');
-  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  const files = ['index.html'].concat([...html.matchAll(/(?:src|href)="((?:src|css)\/[^"]+)"/g)].map(m => m[1]));
-  const big = files.map(f => [f, fs.statSync(path.join(root, f)).size]).filter(([, n]) => n > 900 * 1024).map(([f, n]) => `${f}: ${Math.round(n / 1024)} КБ`);
-  expect(big, 'файлы больше 900 КБ не откроются на телефоне').toEqual([]);
+  require('child_process').execFileSync(process.execPath, [require('path').join(__dirname, '..', 'tools', 'build-single.js')]);
+  const errors = collectErrors(page);
+  const outside = [];
+  page.on('request', r => { const u = r.url(); if (/localhost/.test(u) && !/dist\/os-app\.local/.test(u)) outside.push(u); });
+  await page.goto('/dist/os-app.local.html');
+  await expect(page.getByText('Пропустить').first()).toBeVisible();
+  expect(await page.evaluate(() => !!(window.OS3H_M && window.OS3H_M.P && Object.keys(MOVES).length > 100))).toBe(true);
+  await page.getByText('Пропустить').first().click();
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-single.png` });
+  expect(outside, 'страница не должна грузить отдельные файлы').toEqual([]);
+  expect(errors).toEqual([]);
 });
