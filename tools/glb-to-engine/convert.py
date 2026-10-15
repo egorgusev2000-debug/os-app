@@ -417,9 +417,24 @@ pk = {
 }
 assert np.abs(out).max() < 320 and nv < 65536
 payload = json.dumps(pk, ensure_ascii=False, separators=(',', ':'))
-with open(OUT, 'w', encoding='utf-8') as fo:
-    if OUT.endswith('.js'):
-        fo.write('/* MakeHuman male body (CC0), re-posed onto the engine skeleton by tools/glb-to-engine/convert.py */ window.OS3H_M = ' + payload + ';\n')
-    else:
-        fo.write(payload)
+if OUT.endswith('.js'):
+    # Several files of at most ~0.5 MB: the Claude app on phones does not load a file over about 1 MB.
+    # body-male.js holds the geometry, -2 the triangles and clothing borders, -3 the skin and eyebrows, -4 the hair.
+    js = lambda o: json.dumps(o, ensure_ascii=False, separators=(',', ':'))
+    head = '/* MakeHuman male body (CC0), re-posed onto the engine skeleton by tools/glb-to-engine/convert.py, part %d of 4 */ '
+    core = {k: pk[k] for k in ('nv', 'nt', 'P', 'N', 'BI', 'BW', 'RL', 'UV', 'feat')}
+    chunks = [
+        head % 1 + 'window.OS3H_M = Object.assign(window.OS3H_M || {}, ' + js(core) + ');\n',
+        head % 2 + 'window.OS3H_M = Object.assign(window.OS3H_M || {}, ' + js({k: pk[k] for k in ('CL', 'LM', 'IDX')}) + ');\n',
+        head % 3 + 'window.OS3H_M = Object.assign(window.OS3H_M || {}, ' + js({'tex': pk['tex']}) + ');\n'
+        + ''.join('(window.OS3H_M.parts = window.OS3H_M.parts || []).push(' + js(q) + ');\n' for q in pk['parts'] if q['n'] != 'hair'),
+        head % 4 + ''.join('(window.OS3H_M = window.OS3H_M || {}, window.OS3H_M.parts = window.OS3H_M.parts || []).push(' + js(q) + ');\n' for q in pk['parts'] if q['n'] == 'hair'),
+    ]
+    for i, c in enumerate(chunks):
+        fn = OUT if i == 0 else OUT[:-3] + '-%d.js' % (i + 1)
+        open(fn, 'w', encoding='utf-8').write(c)
+        print('wrote', fn, len(c.encode('utf-8')), 'bytes')
+        assert len(c.encode('utf-8')) < 700000, 'a body file is too big for phones'
+else:
+    open(OUT, 'w', encoding='utf-8').write(payload)
 print('packed bytes', len(payload))

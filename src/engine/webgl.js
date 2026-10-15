@@ -575,7 +575,8 @@ void main() {
   /* realistic body (MakeHuman, CC0) baked onto the engine skeleton: same attributes as the built body */
   function glbData(sex) {
     const src = sex === 'm' && typeof window !== 'undefined' && window.OS3H_M;
-    if (!src) return null;
+    // the body comes in four files; without any of the first two the drawn figure stands in
+    if (!src || !src.P || !src.IDX || !src.CL || !src.LM) return null;
     const dec = (b, Tp) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Tp(u.buffer); };
     const nv = src.nv, f32 = n => new Float32Array(n);
     const P16 = dec(src.P, Int16Array), N8 = dec(src.N, Int8Array), BI8 = dec(src.BI, Uint8Array), BW8 = dec(src.BW, Uint8Array), CL16 = dec(src.CL, Int16Array), LM16 = dec(src.LM, Int16Array), RL8 = dec(src.RL, Int8Array);

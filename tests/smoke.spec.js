@@ -96,3 +96,14 @@ test('в тренировке можно сделать легче и замен
   await expect(page.locator('[data-act="adapt-reset"]')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+// Приложение Claude на телефоне не загружает файл больше примерно 1 МБ (тело 1,5 МБ не открывалось), поэтому каждый файл меньше 900 КБ.
+test('каждый файл приложения меньше 900 КБ', async ({}, info) => {
+  test.skip(info.project.name !== '360-light', 'достаточно одного раза');
+  const fs = require('fs'), path = require('path');
+  const root = path.join(__dirname, '..');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const files = ['index.html'].concat([...html.matchAll(/(?:src|href)="((?:src|css)\/[^"]+)"/g)].map(m => m[1]));
+  const big = files.map(f => [f, fs.statSync(path.join(root, f)).size]).filter(([, n]) => n > 900 * 1024).map(([f, n]) => `${f}: ${Math.round(n / 1024)} КБ`);
+  expect(big, 'файлы больше 900 КБ не откроются на телефоне').toEqual([]);
+});
