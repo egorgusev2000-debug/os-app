@@ -1870,7 +1870,7 @@ const S = {
   v: 5, onb: 0, start: '', tier: 'b', places: Object.assign({}, PRESETS[1][2]), ovr: {}, week: { b: 1, a: 1, p: 1 },
   done: {}, owned: {}, log: [], xpArch: 0, zones: {}, focus: [], ach: {}, read: {}, habits: {}, tlog: {}, lday: null,
   sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {},
-  set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1, holo: 1 }, updatedAt: 0
+  set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1, holo: 1, ui: 'dark' }, updatedAt: 0
 };
 const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false, prefs: false, allAch: false, allTests: false };
 
@@ -1886,7 +1886,7 @@ function apply(d) {
   S.week = Object.assign({ b: 1, a: 1, p: 1 }, isObj(d.week) ? d.week : {});
   S.log = Array.isArray(d.log) ? d.log.filter(x => isObj(x) && typeof x.d === 'string').slice(-LOG_MAX) : [];
   S.focus = Array.isArray(d.focus) ? d.focus.filter(z => ZM[z]) : [];
-  S.set = Object.assign({ voice: 1, count: 1, sound: 1, vib: 1, gl: 1, anat: 0, holo: 1 }, isObj(d.set) ? d.set : {});
+  S.set = Object.assign({ voice: 1, count: 1, sound: 1, vib: 1, gl: 1, anat: 0, holo: 1, ui: 'dark' }, isObj(d.set) ? d.set : {});
   S.sex = d.sex === 'f' || d.sex === 'm' ? d.sex : '';
   S.age = d.age === '40' || d.age === '60' ? d.age : '';
   S.stage = ['preg', 'post', 'meno'].includes(d.stage) ? d.stage : '';
@@ -2858,6 +2858,7 @@ function vProgress() {
   ${UI.prefs ? `<div id="prefs"></div>
   <div class="sec-h"><h2>Профиль</h2></div>
   <section class="card rows">
+    <div class="prow"><span>Оформление</span><div class="seg3" role="group" aria-label="Оформление">${[['dark', 'Тёмное'], ['light', 'Светлое'], ['auto', 'Как в системе']].map(([k, n]) => `<button data-act="ui" data-v="${k}" aria-pressed="${(S.set.ui || 'dark') === k}">${n}</button>`).join('')}</div></div>
     <div class="prow"><span>Кто занимается</span><div class="seg3" role="group" aria-label="Кто занимается"><button data-act="sex" data-v="m" aria-pressed="${S.sex !== 'f'}">Мужчина</button><button data-act="sex" data-v="f" aria-pressed="${S.sex === 'f'}">Женщина</button></div></div>
     <div class="prow"><span>Возраст</span><div class="seg3" role="group" aria-label="Возраст">${[['', 'до 40'], ['40', '40–59'], ['60', '60+']].map(([k, n]) => `<button data-act="age" data-v="${k}" aria-pressed="${(S.age || '') === k}">${n}</button>`).join('')}</div></div>
     ${S.sex === 'f' ? `<div class="prow"><span>Этап</span><div class="seg3 two" role="group" aria-label="Этап жизни">${[['', 'Обычный режим'], ['preg', 'Беременность'], ['post', 'После родов'], ['meno', 'Менопауза']].map(([k, n]) => `<button data-act="stage" data-v="${k}" aria-pressed="${(S.stage || '') === k}">${n}</button>`).join('')}</div></div>` : ''}
@@ -2899,6 +2900,9 @@ function vFood() { return `<div class="gut" id="gut-root"></div>`; }
 const reduceMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 // figure look: the glowing blue hologram on a dark stage (default) or the studio figure with skin and clothes
 function figLook() {
+  // app look: dark by default (it suits the glowing figure), light, or as the phone is set
+  const ui = S.set.ui === 'light' || S.set.ui === 'auto' ? S.set.ui : 'dark';
+  if ((document.documentElement.dataset.ui || 'auto') !== ui) { if (ui === 'auto') delete document.documentElement.dataset.ui; else document.documentElement.dataset.ui = ui; }
   const on = !!(S.set.gl && S.set.holo);
   window.OS3_LOOK = on ? 3 : undefined;
   document.documentElement.dataset.fig = on ? 'holo' : '';
@@ -3846,6 +3850,7 @@ document.addEventListener('click', ev => {
     case 'tier': S.tier = v; UI.day = todayIdx(); commit(); render(); break;
     case 'week': S.week[S.tier] = clamp(curWeek() + Number(v), 1, TIERS[S.tier].weeks); commit(); render(); if (UI.tab === 'today') toast('Неделя ' + S.week[S.tier] + ' из ' + TIERS[S.tier].weeks); break;
     case 'day': UI.day = Number(v); render(); break;
+    case 'ui': S.set.ui = v; commit(); render(); break;
     case 'pday': { const [w, d] = v.split('|').map(Number); if (w !== curWeek()) { S.week[S.tier] = clamp(w, 1, TIERS[S.tier].weeks); commit(); } UI.day = d; render(); break; }
     case 'done': { const [key, sid] = v.split('~'); toggleDone(key, sid); render(); break; }
     case 'pick': openPick(v); break;
@@ -3945,7 +3950,7 @@ function onTheme() {
   if (UI.tab === 'move' && UI.mv === 'body' && !PL.open) drawBody(true);
 }
 try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onTheme); } catch (e) { }
-try { new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) { }
+try { new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-ui'] }); } catch (e) { }
 let rsz = 0;
 window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (UI.tab === 'move' && UI.mv === 'body' && !PL.open) drawBody(true); }, 150); });
 

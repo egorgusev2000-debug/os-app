@@ -1,7 +1,7 @@
 /* Layout: phone-first app shell. Sticky top bar, one column up to 640px, fixed bottom tab bar.
    The figure stands on a posture grid with a plumb line — the "axis" of the brand. Sheets and the workout player sit above. */
 :root {
-  --bg: #F1F3F6; --surface: #FFFFFF; --surface-2: #E8ECF1; --surface-3: #DBE1E8;
+  --bg0: #E9ECF1; --bg: var(--bg0); --surface: #FFFFFF; --surface-2: #E6EAF0; --surface-3: #D8DEE6; --tint: 9%;
   --ink: #0E1622; --ink-2: #2B3544; --muted: #5A6577; --line: #D6DCE4; --line-ctl: #A2ACBA;
   /* each section has its own colour: today orange, movement blue, nutrition green, progress violet */
   --c-today: #E35A0F; --c-move: #2563EB; --c-food: #138A48; --c-prog: #7C3AED; --c-gold: #D99A00; --on-c: #FFFFFF;
@@ -19,8 +19,8 @@
   --f-body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #090B0F; --surface: #13161C; --surface-2: #1B1F27; --surface-3: #252B35;
+  :root:not([data-theme="light"]):not([data-ui="light"]) {
+    --bg0: #08090D; --bg: var(--bg0); --surface: #13161C; --surface-2: #1B1F27; --surface-3: #252B35; --tint: 5%;
     --ink: #E9EDF3; --ink-2: #C5CCD7; --muted: #929CAD; --line: #262C36; --line-ctl: #485263;
     --c-today: #FF8A3D; --c-move: #6E9DFF; --c-food: #44D17F; --c-prog: #B49AFF; --c-gold: #F5C04A; --on-c: #0B0D12;
     --gold-ink: #F0B93A; --red-ink: #FF7A6E;
@@ -34,8 +34,8 @@
     color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
-  --bg: #090B0F; --surface: #13161C; --surface-2: #1B1F27; --surface-3: #252B35;
+:root[data-theme="dark"]:not([data-ui="light"]), :root[data-ui="dark"] {
+  --bg0: #08090D; --bg: var(--bg0); --surface: #13161C; --surface-2: #1B1F27; --surface-3: #252B35; --tint: 5%;
   --ink: #E9EDF3; --ink-2: #C5CCD7; --muted: #929CAD; --line: #262C36; --line-ctl: #485263;
   --c-today: #FF8A3D; --c-move: #6E9DFF; --c-food: #44D17F; --c-prog: #B49AFF; --c-gold: #F5C04A; --on-c: #0B0D12;
   --gold-ink: #F0B93A; --red-ink: #FF7A6E;
@@ -880,3 +880,27 @@ main { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
 .statg .stat:nth-child(1) { --sc: var(--c-move); } .statg .stat:nth-child(2) { --sc: var(--c-today); } .statg .stat:nth-child(3) { --sc: #E5484D; } .statg .stat:nth-child(4) { --sc: var(--c-gold); }
 .stat { background: color-mix(in srgb, var(--sc, var(--tier)) 9%, var(--surface)); box-shadow: none; }
 .stat b { color: var(--sc, var(--ink)); font-size: 24px; }
+
+/* ---------- fuller colour: each section tints the whole screen, cards are solid ---------- */
+.app { background: var(--bg); min-height: 100vh; }
+.app[data-tab="today"] { --bg: color-mix(in srgb, var(--c-today) var(--tint), var(--bg0)); }
+.app[data-tab="move"] { --bg: color-mix(in srgb, var(--c-move) var(--tint), var(--bg0)); }
+.app[data-tab="food"] { --bg: color-mix(in srgb, var(--c-food) var(--tint), var(--bg0)); }
+.app[data-tab="progress"] { --bg: color-mix(in srgb, var(--c-prog) var(--tint), var(--bg0)); }
+.tabbar { background: var(--surface); }
+.top { background: color-mix(in srgb, var(--bg) 94%, transparent); }
+.gutcard { background: color-mix(in srgb, var(--c-food) 14%, var(--surface)); }
+.hscroll .lesson { background: color-mix(in srgb, var(--c-prog) 15%, var(--surface)); }
+.hscroll .office { background: color-mix(in srgb, var(--c-move) 14%, var(--surface)); }
+.hscroll .pick-z { background: color-mix(in srgb, var(--c-today) 14%, var(--surface)); }
+.card.lightcard { background: color-mix(in srgb, var(--c-gold) 12%, var(--surface)); }
+.stat { background: color-mix(in srgb, var(--sc, var(--tier)) 15%, var(--surface)); }
+.pill { background: var(--surface); }
+/* iPad: today's cards flow down two even columns, so no column ends early and leaves a gap */
+@media (min-width: 744px) {
+  .screen[data-s="today"] .split { display: block; columns: 2; column-gap: 20px; }
+  .screen[data-s="today"] .split > .col { display: contents; }
+  .screen[data-s="today"] .split > .col > * { break-inside: avoid; margin: 0 0 20px; }
+  .hscroll { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: start; }
+}
+.oth .thumb { display: block; }

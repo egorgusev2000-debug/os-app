@@ -185,9 +185,9 @@
 /* extra.css */
 :root { --mid: #9A6F0E; --risk: #B23A30; --on-sem: #FFFFFF; --veg: #3E8E5A; --grain: #C28A2C; }
 @media (prefers-color-scheme: dark) {
-:root:not([data-theme="light"]) { --mid: #E2B54E; --risk: #F07E73; --on-sem: #111614; --veg: #5FBF80; --grain: #E3AE57; }
+:root:not([data-theme="light"]):not([data-ui="light"]) { --mid: #E2B54E; --risk: #F07E73; --on-sem: #111614; --veg: #5FBF80; --grain: #E3AE57; }
 }
-:root[data-theme="dark"] { --mid: #E2B54E; --risk: #F07E73; --on-sem: #111614; --veg: #5FBF80; --grain: #E3AE57; }
+:root[data-theme="dark"]:not([data-ui="light"]), :root[data-ui="dark"] { --mid: #E2B54E; --risk: #F07E73; --on-sem: #111614; --veg: #5FBF80; --grain: #E3AE57; }
 .gut .brand h1 { flex: none; white-space: nowrap; }
 .gut .brand .mod { font-family: var(--f-body); font-weight: 500; font-size: 13px; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
 .gut .brand .sync { min-width: 0; }
@@ -429,9 +429,9 @@
 /* kfun.css */
 :root { --st0: #4F5BD5; --st1: #22874D; --st2: #C9561A; --st3: #9C7200; --st4: #7B4FD0; --st5: #C73A6B; --st6: #13807F; --stp: #2F6FC9; --on-st: #FFFFFF; --g-n: #2E9E5B; --g-ap: #D2475E; --g-ff: #2C7BC0; --g-pf: #6B8417; --g-c: #C98A1E; --g-fr: #9B4FD0; --veg: var(--g-n); --grain: var(--g-c); }
 @media (prefers-color-scheme: dark) {
-:root:not([data-theme="light"]) { --st0: #8E97F2; --st1: #5CC98A; --st2: #F39A5B; --st3: #E6B83E; --st4: #B497F0; --st5: #F07AA3; --st6: #4FC7C7; --stp: #7BAEF0; --on-st: #10131A; --g-n: #5CC98A; --g-ap: #F07A8C; --g-ff: #6FB0EA; --g-pf: #B5D05A; --g-c: #E8B456; --g-fr: #C397F0; }
+:root:not([data-theme="light"]):not([data-ui="light"]) { --st0: #8E97F2; --st1: #5CC98A; --st2: #F39A5B; --st3: #E6B83E; --st4: #B497F0; --st5: #F07AA3; --st6: #4FC7C7; --stp: #7BAEF0; --on-st: #10131A; --g-n: #5CC98A; --g-ap: #F07A8C; --g-ff: #6FB0EA; --g-pf: #B5D05A; --g-c: #E8B456; --g-fr: #C397F0; }
 }
-:root[data-theme="dark"] { --st0: #8E97F2; --st1: #5CC98A; --st2: #F39A5B; --st3: #E6B83E; --st4: #B497F0; --st5: #F07AA3; --st6: #4FC7C7; --stp: #7BAEF0; --on-st: #10131A; --g-n: #5CC98A; --g-ap: #F07A8C; --g-ff: #6FB0EA; --g-pf: #B5D05A; --g-c: #E8B456; --g-fr: #C397F0; }
+:root[data-theme="dark"]:not([data-ui="light"]), :root[data-ui="dark"] { --st0: #8E97F2; --st1: #5CC98A; --st2: #F39A5B; --st3: #E6B83E; --st4: #B497F0; --st5: #F07AA3; --st6: #4FC7C7; --stp: #7BAEF0; --on-st: #10131A; --g-n: #5CC98A; --g-ap: #F07A8C; --g-ff: #6FB0EA; --g-pf: #B5D05A; --g-c: #E8B456; --g-fr: #C397F0; }
 .gut[data-stage="s0"] { --tier: var(--st0); }
 .gut[data-stage="s1"] { --tier: var(--st1); }
 .gut[data-stage="s2"] { --tier: var(--st2); }
