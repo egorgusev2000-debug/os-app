@@ -1,8 +1,10 @@
 /* Layout: phone-first app shell. Sticky top bar, one column up to 640px, fixed bottom tab bar.
    The figure stands on a posture grid with a plumb line — the "axis" of the brand. Sheets and the workout player sit above. */
 :root {
-  --bg: #EDF2EF; --surface: #FFFFFF; --surface-2: #E3EAE6; --surface-3: #D6E0DA;
-  --ink: #12201A; --ink-2: #2E3E36; --muted: #5C6C64; --line: #D0DAD4; --line-ctl: #A3B2AA;
+  --bg: #F1F3F6; --surface: #FFFFFF; --surface-2: #E8ECF1; --surface-3: #DBE1E8;
+  --ink: #0E1622; --ink-2: #2B3544; --muted: #5A6577; --line: #D6DCE4; --line-ctl: #A2ACBA;
+  /* each section has its own colour: today orange, movement blue, nutrition green, progress violet */
+  --c-today: #E35A0F; --c-move: #2563EB; --c-food: #138A48; --c-prog: #7C3AED; --c-gold: #D99A00; --on-c: #FFFFFF;
   --gold-ink: #8A5A00; --red-ink: #C0322B;
   --b: #2470B3; --a: #C63A71; --p: #262B2F; --on-b: #FFFFFF; --on-a: #FFFFFF; --on-p: #FFFFFF;
   --ok: #2B8452; --on-ok: #FFFFFF; --warn-bg: #FFF1D6; --warn-ink: #694800; --glow: #FF4F45; --gold: #E0A21B;
@@ -18,8 +20,9 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0D1210; --surface: #151D19; --surface-2: #1D2722; --surface-3: #26312B;
-    --ink: #E6EEE9; --ink-2: #C3CFC8; --muted: #95A69D; --line: #29352F; --line-ctl: #45534B;
+    --bg: #090B0F; --surface: #13161C; --surface-2: #1B1F27; --surface-3: #252B35;
+    --ink: #E9EDF3; --ink-2: #C5CCD7; --muted: #929CAD; --line: #262C36; --line-ctl: #485263;
+    --c-today: #FF8A3D; --c-move: #6E9DFF; --c-food: #44D17F; --c-prog: #B49AFF; --c-gold: #F5C04A; --on-c: #0B0D12;
     --gold-ink: #F0B93A; --red-ink: #FF7A6E;
     --b: #5BA4E2; --a: #E46B9C; --p: #DDE3E0; --on-b: #0A1824; --on-a: #2A0714; --on-p: #101513;
     --ok: #4DB27B; --on-ok: #08160E; --warn-bg: #352A12; --warn-ink: #F2D8A2; --glow: #FF6A5E; --gold: #F0B93A;
@@ -32,8 +35,9 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0D1210; --surface: #151D19; --surface-2: #1D2722; --surface-3: #26312B;
-  --ink: #E6EEE9; --ink-2: #C3CFC8; --muted: #95A69D; --line: #29352F; --line-ctl: #45534B;
+  --bg: #090B0F; --surface: #13161C; --surface-2: #1B1F27; --surface-3: #252B35;
+  --ink: #E9EDF3; --ink-2: #C5CCD7; --muted: #929CAD; --line: #262C36; --line-ctl: #485263;
+  --c-today: #FF8A3D; --c-move: #6E9DFF; --c-food: #44D17F; --c-prog: #B49AFF; --c-gold: #F5C04A; --on-c: #0B0D12;
   --gold-ink: #F0B93A; --red-ink: #FF7A6E;
   --b: #5BA4E2; --a: #E46B9C; --p: #DDE3E0; --on-b: #0A1824; --on-a: #2A0714; --on-p: #101513;
   --ok: #4DB27B; --on-ok: #08160E; --warn-bg: #352A12; --warn-ink: #F2D8A2; --glow: #FF6A5E; --gold: #F0B93A;
@@ -812,3 +816,67 @@ form.numinput { flex-wrap: wrap; }
 html[data-fig="holo"] .stage, html[data-fig="holo"] .thumb { background: radial-gradient(110% 80% at 50% 42%, #071331 0%, #02060F 55%, #000 100%); --fig-dark: 1; }
 html[data-fig="holo"] .stage .hint { color: #8FA6C9; }
 html[data-fig="holo"] .thumb .noanim { color: #6F8BB8; }
+
+/* ---------- colour by section ---------- */
+.app[data-tab="today"] { --tier: var(--c-today); --on-tier: var(--on-c); }
+.app[data-tab="move"] { --tier: var(--c-move); --on-tier: var(--on-c); }
+.app[data-tab="food"] { --tier: var(--c-food); --on-tier: var(--on-c); }
+.app[data-tab="progress"] { --tier: var(--c-prog); --on-tier: var(--on-c); }
+.sec-h h2 { font-size: 20px; letter-spacing: -.005em; }
+/* bottom bar floats as one rounded panel; each tab lights up in its own colour */
+.tabbar { left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding-bottom: 0; border-radius: 26px; box-shadow: 0 10px 30px rgba(10, 16, 28, .16), 0 0 0 1px var(--line); background: color-mix(in srgb, var(--surface) 90%, transparent); }
+.tabbar .wrap { padding: 4px; }
+.tab { padding: 7px 0 8px; border-radius: 20px; }
+.tab[data-v="today"] { --tc: var(--c-today); } .tab[data-v="move"] { --tc: var(--c-move); } .tab[data-v="food"] { --tc: var(--c-food); } .tab[data-v="progress"] { --tc: var(--c-prog); }
+.tab[aria-current="page"] { color: var(--tc); }
+.tab[aria-current="page"] svg { background: color-mix(in srgb, var(--tc) 16%, transparent); color: var(--tc); }
+main { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+.toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+/* today: the workout of the day is one dark card, figure on top, white text below */
+.card.card.hero { background: #07090D; color: #EEF2F7; box-shadow: 0 16px 40px rgba(7, 9, 13, .28); --surface-2: rgba(255, 255, 255, .1); --ink: #EEF2F7; --muted: #A3ADBD; --fig-dark: 1; }
+.card.hero .stage { background: radial-gradient(110% 80% at 50% 42%, #0C1730 0%, #04070F 60%, #07090D 100%); }
+.card.hero .hb { padding: 16px 18px 18px; background: linear-gradient(180deg, #07090D, #0C1018); }
+.card.hero .lbl { color: var(--tier); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: 12px; }
+.card.hero .h1 { color: #FFFFFF; font-size: 28px; }
+.card.hero .tag { background: rgba(255, 255, 255, .1); color: #D9DFE8; }
+.card.hero .btn.ghost { background: rgba(255, 255, 255, .12); color: #FFFFFF; }
+.card.hero .over .tag { background: rgba(7, 9, 13, .62); color: #EEF2F7; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.card.hero.calm p { color: #A3ADBD; }
+/* cards of the day in their section colours */
+.gutcard { background: color-mix(in srgb, var(--c-food) 7%, var(--surface)); }
+#habcard .hrow[aria-pressed="true"] .box { background: var(--c-gold); color: #fff; }
+.hscroll .lesson { background: color-mix(in srgb, var(--c-prog) 9%, var(--surface)); }
+.hscroll .lesson .lt svg { color: var(--c-prog); }
+.hscroll .office { background: color-mix(in srgb, var(--c-move) 8%, var(--surface)); }
+.hscroll .pick-z { background: color-mix(in srgb, var(--c-today) 8%, var(--surface)); }
+.dayrings b { font-size: 22px; }
+.srow[data-next="1"] { box-shadow: inset 0 0 0 2px var(--tier); }
+.sec-h { flex-wrap: wrap; row-gap: 2px; }
+/* plan: the course as a grid of days with a small figure in each */
+.pgrid-card { display: grid; gap: 12px; }
+.pg-h { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.pg-h .h2 { font-size: 22px; }
+.pg-nav { display: flex; gap: 6px; }
+.pg-p { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.pgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px 6px; }
+.pgrid .wdh { font-size: 11.5px; color: var(--muted); text-align: center; font-weight: 600; }
+.pday { position: relative; display: grid; justify-items: center; gap: 3px; min-width: 0; }
+.pday .thumb { width: 100%; border-radius: 10px; transition: transform .15s; }
+.pday:active .thumb { transform: scale(.94); }
+.pday .pd-n { font-size: 11.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 22px; text-align: center; border-radius: 999px; line-height: 18px; }
+.pday[data-when="future"] .thumb { opacity: .42; }
+.pday[data-when="today"] .thumb { box-shadow: 0 0 0 2px var(--tier); }
+.pday[data-when="today"] .pd-n { color: var(--tier); }
+.pday[aria-pressed="true"] .pd-n { background: var(--tier); color: var(--on-tier); }
+.pday[data-s="part"] .thumb { box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--tier) 70%, transparent); }
+.pday .pd-ok { position: absolute; top: -5px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--surface); }
+.pday .pd-ok svg { width: 11px; height: 11px; }
+/* progress: the level card in the section's violet, numbers each in their own colour */
+.card.lvl { background: linear-gradient(150deg, #4C1D95 0%, #6D28D9 50%, #9333EA 100%); color: #FFFFFF; box-shadow: 0 16px 36px rgba(76, 29, 149, .32);
+  --ink: #FFFFFF; --ink-2: #F3E8FF; --muted: rgba(255, 255, 255, .78); --surface-2: rgba(255, 255, 255, .16); --tier: #FCD34D; --line: rgba(255, 255, 255, .22); }
+.card.lvl .lbl { color: rgba(255, 255, 255, .8); text-transform: uppercase; letter-spacing: .08em; font-size: 12px; font-weight: 700; }
+.card.lvl .gearb { color: #FFFFFF; }
+.card.lvl .xpbar { background: rgba(255, 255, 255, .2); }
+.statg .stat:nth-child(1) { --sc: var(--c-move); } .statg .stat:nth-child(2) { --sc: var(--c-today); } .statg .stat:nth-child(3) { --sc: #E5484D; } .statg .stat:nth-child(4) { --sc: var(--c-gold); }
+.stat { background: color-mix(in srgb, var(--sc, var(--tier)) 9%, var(--surface)); box-shadow: none; }
+.stat b { color: var(--sc, var(--ink)); font-size: 24px; }

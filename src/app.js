@@ -2468,6 +2468,7 @@ const MV_TABS = [['plan', 'План'], ['body', 'Карта тела'], ['ex', '
 function renderTop() {
   const st = stats();
   document.getElementById('app').dataset.tier = S.tier;
+  document.getElementById('app').dataset.tab = UI.tab;
   document.getElementById('stats').innerHTML =
     `<button class="pill" data-act="tab" data-v="progress" data-on="${st.streak > 0 ? 1 : 0}" aria-label="Серия ${st.streak} ${plural(st.streak, ['день', 'дня', 'дней'])} подряд">${ic('flame', 'fl')}<span>${st.streak}</span></button>` +
     `<button class="pill lv" data-act="tab" data-v="progress" aria-label="Уровень ${esc(lvlTitle(st.lvl))}">${ic('vert', 'vt')}<span>${vcode(st.lvl)}</span></button>`;
@@ -2566,9 +2567,9 @@ function dayRings() {
   const tp = todayPlan(), hd = S.habits[today()] || {}, hab = HABITS[S.tier];
   const g = typeof GUT !== 'undefined' ? GUT.summary() : null;
   const R = [
-    ['move', 'Движение', tp.list.filter(x => x.done).length, tp.list.length, 'var(--tier)', 'sl'],
-    ['food', 'Питание', g ? g.items.filter(i => i.done).length : 0, g ? g.items.length : 0, 'var(--ok)', 'gutcard'],
-    ['hab', 'Привычки', Object.keys(hd).length, hab.length, 'var(--gold)', 'habcard']
+    ['move', 'Движение', tp.list.filter(x => x.done).length, tp.list.length, 'var(--c-move)', 'sl'],
+    ['food', 'Питание', g ? g.items.filter(i => i.done).length : 0, g ? g.items.length : 0, 'var(--c-food)', 'gutcard'],
+    ['hab', 'Привычки', Object.keys(hd).length, hab.length, 'var(--c-gold)', 'habcard']
   ].filter(r => r[3]);
   const all = R.every(r => r[2] >= r[3]);
   return `<section class="card dayrings" aria-label="Итог дня">${R.map(([k, n, v, m, c, to]) => `<button class="dr" data-act="jump" data-v="${to}" style="--rc:${c}" aria-label="${n}: ${v} из ${m}"><span class="drr">${ring(v, m, 22, 6)}${v >= m ? `<i>${ic('check')}</i>` : ''}</span><b class="num">${v}<small>/${m}</small></b><small>${n}</small></button>`).join('')}${all ? '<p class="dr-all">День закрыт. Так держать!</p>' : ''}</section>`;
@@ -2621,12 +2622,7 @@ function vPlan() {
     <div class="acts"><button class="btn sm ghost" data-act="places">${ic('pin')}Где занимаетесь</button><button class="btn sm ghost" data-act="equip">${ic('bag')}Инвентарь</button></div>
     <p class="small muted">${cats.map(([c, n]) => `${esc(n)}: ${esc(PLACES[S.places[c]].toLowerCase())}`).join('; ')}</p>
   </section>
-  </div><div class="col"><section class="card wplan">
-    <div class="wnav"><button class="iconbtn" data-act="week" data-v="-1" aria-label="Предыдущая неделя"${week <= 1 ? ' disabled' : ''}>${ic('back')}</button><span class="wl">Неделя ${week} из ${t.weeks}</span><button class="iconbtn" data-act="week" data-v="1" aria-label="Следующая неделя"${week >= t.weeks ? ' disabled' : ''}>${ic('chev')}</button></div>
-    <div class="bar" aria-hidden="true"><i style="width:${wc.total ? Math.round(wc.done / wc.total * 100) : 0}%"></i></div>
-    <p class="small muted">${wc.done} из ${wc.total} занятий. ${esc(progNote(S.tier, week))}</p>
-    <div class="days7" role="group" aria-label="День недели">${DAYS.map((n, i) => `<button class="dbtn" data-act="day" data-v="${i}" aria-pressed="${day === i}"${i === todayIdx() ? ' data-today="1"' : ''} aria-label="${DAYS_FULL[i]}"><b>${n}</b><i data-v="${dayStatus(S.tier, week, i)}"></i></button>`).join('')}</div>
-  </section>
+  </div><div class="col">${pathGrid(week, day)}
   </div></div>
   <div class="sec-h"><h2>${DAYS_FULL[day]}${day === todayIdx() ? ', сегодня' : ''}</h2><span class="small muted">${esc(d.n)}</span></div>
   <div class="sgrid">${sess.map(sid => sessCard(sid, week, day)).join('')}</div>
@@ -2634,6 +2630,26 @@ function vPlan() {
   <section class="card xprac"><div><h2 class="h3">Восточные практики</h2><p class="small muted">По желанию. Основа курса остаётся восстанавливающей, йога уже в плане.</p></div>
     <div class="rows">${[['qg', 'Цигун: Ба Дуань Цзинь', 'вторник и пятница, 12–15 мин'], ['tc', 'Тайцзи: основы', 'среда и суббота, 15 мин']].map(([k, n, d]) => `<button class="lrow" data-act="extra" data-v="${k}" role="switch" aria-checked="${S.extra[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}</div></section>
   <div class="progs">${extraList().map(([sid, sub]) => `<button class="prog" data-act="open-s" data-v="~${sid}">${thumb(SESS[sid].items.find(x => MOVES[x[0]])[0])}<b>${esc(SESS[sid].n)}</b><small>${esc(sub)}, ${esc(SESS[sid].min)}</small></button>`).join('')}</div>`;
+}
+// the course as a grid of days, four weeks at a time: done days ticked, today outlined, later days dimmed
+function pathGrid(week, day) {
+  const t = TIERS[S.tier], w0 = Math.floor((week - 1) / 4) * 4 + 1, w1 = Math.min(t.weeks, w0 + 3), td = todayIdx();
+  let done = 0, all = 0, tiles = '';
+  for (let w = w0; w <= w1; w++) for (let d = 0; d < 7; d++) {
+    const st = dayStatus(S.tier, w, d), n = (w - 1) * 7 + d + 1;
+    const when = w < week || (w === week && d < td) ? 'past' : w === week && d === td ? 'today' : 'future';
+    const sids = sessionsFor(S.tier, w, d), main = sids.find(x => SESS[x] && SESS[x].c !== 'morning') || sids[0];
+    const id = main && SESS[main] ? (SESS[main].items.find(x => MOVES[x[0]]) || [])[0] : null;
+    all++; if (st === 'all') done++;
+    tiles += `<button class="pday" data-act="pday" data-v="${w}|${d}" data-s="${st}" data-when="${when}" aria-pressed="${w === week && d === day}" aria-label="День ${n}, ${DAYS_FULL[d].toLowerCase()}, неделя ${w}${st === 'all' ? ', выполнен' : ''}"><span class="thumb">${id ? fig(id) : ''}</span>${st === 'all' ? `<i class="pd-ok">${ic('check')}</i>` : ''}<span class="pd-n">${n}</span></button>`;
+  }
+  const nav = t.weeks > 4 ? `<div class="pg-nav"><button class="iconbtn" data-act="week" data-v="-4" aria-label="Предыдущие 4 недели"${w0 <= 1 ? ' disabled' : ''}>${ic('back')}</button><button class="iconbtn" data-act="week" data-v="4" aria-label="Следующие 4 недели"${w1 >= t.weeks ? ' disabled' : ''}>${ic('chev')}</button></div>` : '';
+  return `<section class="card wplan pgrid-card">
+    <div class="pg-h"><div><div class="lbl">Ваш путь · ${esc(t.name)}</div><h2 class="h2">${w0 === 1 && w1 === t.weeks ? t.weeks * 7 + ' дней' : 'Недели ' + w0 + '–' + w1 + ' из ' + t.weeks}</h2></div>${nav}</div>
+    <div class="pg-p"><div class="bar" aria-hidden="true"><i style="width:${Math.round(done / all * 100)}%"></i></div><span class="small muted num">${done} из ${all} дней</span></div>
+    <div class="pgrid" role="group" aria-label="Дни курса">${DAYS.map(n => `<span class="wdh" aria-hidden="true">${n}</span>`).join('')}${tiles}</div>
+    <p class="small muted">Неделя ${week}. ${esc(progNote(S.tier, week))}</p>
+  </section>`;
 }
 function sessCard(sid, week, day) {
   const s = SESS[sid], key = dayKey(S.tier, week, day, sid), done = !!S.done[key];
@@ -3830,6 +3846,7 @@ document.addEventListener('click', ev => {
     case 'tier': S.tier = v; UI.day = todayIdx(); commit(); render(); break;
     case 'week': S.week[S.tier] = clamp(curWeek() + Number(v), 1, TIERS[S.tier].weeks); commit(); render(); if (UI.tab === 'today') toast('Неделя ' + S.week[S.tier] + ' из ' + TIERS[S.tier].weeks); break;
     case 'day': UI.day = Number(v); render(); break;
+    case 'pday': { const [w, d] = v.split('|').map(Number); if (w !== curWeek()) { S.week[S.tier] = clamp(w, 1, TIERS[S.tier].weeks); commit(); } UI.day = d; render(); break; }
     case 'done': { const [key, sid] = v.split('~'); toggleDone(key, sid); render(); break; }
     case 'pick': openPick(v); break;
     case 'setplace': { const [k, pk] = v.split('::'); const sid = k.split('|')[2]; if (!pk || pk === S.places[SESS[sid].c]) delete S.ovr[k]; else S.ovr[k] = pk; commit(); closeSheet(); render(); break; }
