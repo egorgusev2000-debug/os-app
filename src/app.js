@@ -1869,12 +1869,12 @@ const dateLong = k => { const d = kd(k); return d.getDate() + ' ' + MONTHS[d.get
 const S = {
   v: 5, onb: 0, start: '', tier: 'b', places: Object.assign({}, PRESETS[1][2]), ovr: {}, week: { b: 1, a: 1, p: 1 },
   done: {}, owned: {}, log: [], xpArch: 0, zones: {}, focus: [], ach: {}, read: {}, habits: {}, tlog: {}, lday: null,
-  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {},
+  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {}, goals: [],
   set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1, holo: 1, ui: 'dark' }, updatedAt: 0
 };
 const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false, prefs: false, allAch: false, allTests: false };
 
-const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'swap', 'easier', 'set', 'updatedAt'];
+const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'swap', 'easier', 'goals', 'set', 'updatedAt'];
 function persist() { const o = {}; PKEYS.forEach(k => { o[k] = S[k]; }); o.v = 5; return JSON.parse(JSON.stringify(o)); }
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 function apply(d) {
@@ -1886,6 +1886,8 @@ function apply(d) {
   S.week = Object.assign({ b: 1, a: 1, p: 1 }, isObj(d.week) ? d.week : {});
   S.log = Array.isArray(d.log) ? d.log.filter(x => isObj(x) && typeof x.d === 'string').slice(-LOG_MAX) : [];
   S.focus = Array.isArray(d.focus) ? d.focus.filter(z => ZM[z]) : [];
+  // plan goals; older saves start from the zones chosen in the questionnaire
+  S.goals = (Array.isArray(d.goals) ? d.goals : S.focus).filter(g => GM[g]).slice(0, 3);
   S.set = Object.assign({ voice: 1, count: 1, sound: 1, vib: 1, gl: 1, anat: 0, holo: 1, ui: 'dark' }, isObj(d.set) ? d.set : {});
   S.sex = d.sex === 'f' || d.sex === 'm' ? d.sex : '';
   S.age = d.age === '40' || d.age === '60' ? d.age : '';
@@ -2034,6 +2036,7 @@ function sessionsFor(tier, week, day) {
   // optional eastern practices: qigong on Tuesday and Friday, tai chi on Wednesday and Saturday
   if (S.extra.qg && (day === 1 || day === 4)) s.push('qg_bdj');
   if (S.extra.tc && (day === 2 || day === 5)) s.push('tc_basic');
+  myGoals().forEach((g, i) => { if (!GOAL_DAYS[i].includes(day)) return; const sid = goalPlanSid(g, tier); if (sid && !s.includes(sid)) s.push(sid); });
   return s;
 }
 function dayStatus(tier, week, day) {
@@ -2056,6 +2059,35 @@ function todayPlan() {
 }
 // extra routines that are not tied to a weekday
 const EXTRA0 = [['office', 'Можно прямо за рабочим столом'], ['b_core', 'Пресс без нагрузки на поясницу'], ['a_core', 'Пресс посильнее'], ['p_core', 'Пресс для продвинутых'], ['lordosis', 'Если поясница прогнута'], ['scol', 'Работа с асимметрией'], ['neck', 'Шея и воротниковая зона'], ['shoulders_b', 'Плечевые суставы'], ['pf_b', 'Тазовое дно, база'], ['pf_a', 'Тазовое дно, сильнее'], ['a_animal', 'Движения на четвереньках']].filter(([sid]) => SESS[sid]);
+/* ---------- «На что работаем»: goals of the plan and trainings by zone ---------- */
+// a zone goal brings its ladder step (as session z_<zone>) and themed sessions; sx limits a goal to one sex
+const GOALS = [
+  { id: 'male', n: 'Мужское здоровье', sub: 'Тазовое дно, сосуды, сила', col: '#2563EB', sx: 'm', s: () => ['pf_m'] },
+  { id: 'female', n: 'Женское здоровье', sub: 'Тазовое дно, кости, колени', col: '#DB2777', sx: 'f', s: t => [t === 'b' ? 'pf_b' : 'pf_a'].concat(S.age === '40' || S.age === '60' || S.stage === 'meno' ? ['f_bones'] : []) },
+  { id: 'lowback', n: 'Поясница', col: '#E35A0F', z: 'lowback', s: () => ['b_core', 'lordosis'] },
+  { id: 'neck', n: 'Шея', col: '#0EA5E9', z: 'neck', s: () => ['neck'] },
+  { id: 'posture', n: 'Осанка', col: '#7C3AED', z: 'posture', s: () => ['shoulders_b'] },
+  { id: 'shoulders', n: 'Плечи', col: '#0891B2', z: 'shoulders', s: () => ['shoulders_b'] },
+  { id: 'hips', n: 'Таз и колени', col: '#D97706', z: 'hips', s: () => S.sex === 'f' ? ['f_knee'] : [] },
+  { id: 'core', n: 'Пресс', col: '#DC2626', z: 'core', s: t => [{ b: 'b_core', a: 'a_core', p: 'p_core' }[t]] },
+  { id: 'pelvic', n: 'Тазовое дно', col: '#BE185D', z: 'pelvic', s: t => [t === 'b' ? 'pf_b' : 'pf_a'] },
+  { id: 'feet', n: 'Стопы', col: '#16A34A', z: 'feet', s: () => [] },
+  { id: 'scoliosis', n: 'Сколиоз', col: '#4F46E5', z: 'scoliosis', s: () => ['scol'] }
+];
+const GM = Object.fromEntries(GOALS.map(g => [g.id, g]));
+const goalsShown = () => GOALS.filter(g => (!g.sx || g.sx === (S.sex || 'm')) && (!g.z || ZM[g.z]));
+const myGoals = () => S.goals.map(id => GM[id]).filter(g => g && (!g.sx || g.sx === (S.sex || 'm')));
+const goalSess = (g, tier) => g.s(tier || S.tier).filter(sid => SESS[sid]);
+// the current ladder step of a zone as a session the plan can hold
+function zoneSid(zid) {
+  const z = ZM[zid], st = zst(zid).step, sid = 'z_' + zid, step = z.steps[st];
+  SESS[sid] = { n: z.n + ': шаг ' + (st + 1), c: 'body', items: zoneItems(zid, st), min: '', zone: zid, step: st, sub: step.n };
+  return sid;
+}
+// what a goal adds to the plan: the ladder step for a zone goal, else its first themed session
+const goalPlanSid = (g, tier) => g.z ? zoneSid(g.z) : goalSess(g, tier)[0];
+// goal 1 on Tue and Fri, goal 2 on Wed and Sat, goal 3 on Thu: at most five extra sessions a week
+const GOAL_DAYS = [[1, 4], [2, 5], [3]];
 const extraList = () => (S.extra.qg ? [['qg_bdj', 'Восемь движений цигуна']] : []).concat(S.extra.tc ? [['tc_basic', 'Основы тайцзи']] : [], EXTRA0);
 
 /* ---------- profile: sex and optional practices ---------- */
@@ -2622,14 +2654,37 @@ function vPlan() {
     <div class="acts"><button class="btn sm ghost" data-act="places">${ic('pin')}Где занимаетесь</button><button class="btn sm ghost" data-act="equip">${ic('bag')}Инвентарь</button></div>
     <p class="small muted">${cats.map(([c, n]) => `${esc(n)}: ${esc(PLACES[S.places[c]].toLowerCase())}`).join('; ')}</p>
   </section>
-  </div><div class="col">${pathGrid(week, day)}
+  </div><div class="col">${goalsCard()}${pathGrid(week, day)}
   </div></div>
   <div class="sec-h"><h2>${DAYS_FULL[day]}${day === todayIdx() ? ', сегодня' : ''}</h2><span class="small muted">${esc(d.n)}</span></div>
   <div class="sgrid">${sess.map(sid => sessCard(sid, week, day)).join('')}</div>
-  <div class="sec-h"><h2>Комплексы на любой день</h2></div>
+  <div class="sec-h"><h2>Тренировки по зонам</h2><span class="small muted">в любой день</span></div>
+  <div class="zshow">${goalsShown().map(g => { const sid = g.z ? null : goalSess(g)[0]; const ex = g.z ? ZM[g.z].steps[zst(g.z).step].ex.map(x => x[0]).find(id => MOVES[id]) : sid && (SESS[sid].items.find(x => MOVES[x[0]]) || [])[0]; return `<button class="ztile" data-act="zshow" data-v="${g.id}" style="--gc:${g.col}">${ex ? thumb(ex) : ''}<b>${esc(g.n)}</b><small>${g.z ? 'Шаг ' + (zst(g.z).step + 1) + ' из ' + ZM[g.z].steps.length : esc(g.sub || '')}</small></button>`; }).join('')}</div>
+  <div class="sec-h"><h2>Ещё комплексы</h2></div>
   <section class="card xprac"><div><h2 class="h3">Восточные практики</h2><p class="small muted">По желанию. Основа курса остаётся восстанавливающей, йога уже в плане.</p></div>
     <div class="rows">${[['qg', 'Цигун: Ба Дуань Цзинь', 'вторник и пятница, 12–15 мин'], ['tc', 'Тайцзи: основы', 'среда и суббота, 15 мин']].map(([k, n, d]) => `<button class="lrow" data-act="extra" data-v="${k}" role="switch" aria-checked="${S.extra[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}</div></section>
-  <div class="progs">${extraList().map(([sid, sub]) => `<button class="prog" data-act="open-s" data-v="~${sid}">${thumb(SESS[sid].items.find(x => MOVES[x[0]])[0])}<b>${esc(SESS[sid].n)}</b><small>${esc(sub)}, ${esc(SESS[sid].min)}</small></button>`).join('')}</div>`;
+  <div class="progs">${extraList().filter(([sid]) => !GOALS.some(g => g.s('b').concat(g.s('a'), g.s('p')).includes(sid))).map(([sid, sub]) => `<button class="prog" data-act="open-s" data-v="~${sid}">${thumb(SESS[sid].items.find(x => MOVES[x[0]])[0])}<b>${esc(SESS[sid].n)}</b><small>${esc(sub)}, ${esc(SESS[sid].min)}</small></button>`).join('')}</div>`;
+}
+// «На что работаем»: up to three goals, each adds short sessions to the week
+function goalsCard() {
+  const mine = S.goals;
+  return `<section class="card goalc"><div><div class="lbl">На что работаем</div><h2 class="h3">${mine.length ? 'Цели плана: ' + mine.length + ' из 3' : 'Выберите до трёх целей'}</h2><p class="small muted">Каждая цель добавляет в неделю короткие занятия на эту зону.</p></div>
+    <div class="goals">${goalsShown().map(g => `<button class="goal" data-act="goal" data-v="${g.id}" aria-pressed="${mine.includes(g.id)}" style="--gc:${g.col}"><i aria-hidden="true">${ic('check')}</i>${esc(g.n)}</button>`).join('')}</div></section>`;
+}
+// trainings of one goal, light to strong
+function openZoneShow(id) {
+  const g = GM[id];
+  if (!g) return;
+  const rows = [];
+  if (g.z) {
+    const z = ZM[g.z], st = zst(g.z).step, step = z.steps[st];
+    rows.push(`<button class="swi" data-act="go-z" data-v="${g.z}">${thumb((step.ex.find(x => MOVES[x[0]]) || step.ex[0])[0])}<span class="swt"><b>Шаг ${st + 1} из ${z.steps.length}: ${esc(step.n)}</b><small>${estMin(step.ex)} мин · ${esc(step.goal)}</small></span><span class="tg">${ic('play')}</span></button>`);
+  }
+  goalSess(g).forEach(sid => { const s = SESS[sid]; rows.push(`<button class="swi" data-act="go-s" data-v="~${sid}">${thumb((s.items.find(x => MOVES[x[0]]) || s.items[0])[0])}<span class="swt"><b>${esc(s.n)}</b><small>${sessMin(s)}, ${s.items.length} упр.</small></span><span class="tg">${ic('play')}</span></button>`); });
+  const on = S.goals.includes(id);
+  openSheet(sheetHead(g.n, `<p class="small muted">${g.z ? 'Лестница от мягких упражнений к сильным: каждый шаг — 6 занятий, потом проверка.' : esc(g.sub || '')}</p>`) +
+    `<div class="swl">${rows.join('')}</div>
+    <div class="acts">${g.z ? `<button class="btn sm ghost" data-act="zone" data-v="${g.z}">Вся лестница</button>` : ''}<button class="btn sm${on ? ' ghost' : ''}" data-act="goal" data-v="${id}">${on ? 'Убрать из плана' : 'Добавить в план'}</button></div>`);
 }
 // the course as a grid of days, four weeks at a time: done days ticked, today outlined, later days dimmed
 function pathGrid(week, day) {
@@ -3222,6 +3277,7 @@ function finishOnb(skip) {
   const o = UI.onb;
   if (!skip) {
     S.focus = o.focus.slice();
+    S.goals = o.focus.filter(g => GM[g]).slice(0, 3);
     S.tier = o.tier;
     S.sex = o.sex || 'm';
     S.age = o.age || '';
@@ -3575,6 +3631,12 @@ function plFinish(complete) {
       if (old >= 0) S.log.splice(old, 1);
       S.done[meta.key] = 1; entry.key = meta.key;
     }
+    const zs = meta.kind === 's' && SESS[meta.sid] && SESS[meta.sid].zone ? SESS[meta.sid] : null;
+    if (zs && complete) {
+      const z = S.zones[zs.zone] || { step: zs.step, n: 0, best: 0 };
+      if ((z.step || 0) === zs.step) z.n = (z.n || 0) + 1;
+      S.zones[zs.zone] = z;
+    }
     if (meta.kind === 'z' && complete) {
       const z = S.zones[meta.zone] || { step: meta.step, n: 0, best: 0 };
       if ((z.step || 0) === meta.step) z.n = (z.n || 0) + 1;
@@ -3851,6 +3913,16 @@ document.addEventListener('click', ev => {
     case 'week': S.week[S.tier] = clamp(curWeek() + Number(v), 1, TIERS[S.tier].weeks); commit(); render(); if (UI.tab === 'today') toast('Неделя ' + S.week[S.tier] + ' из ' + TIERS[S.tier].weeks); break;
     case 'day': UI.day = Number(v); render(); break;
     case 'ui': S.set.ui = v; commit(); render(); break;
+    case 'goal': {
+      const i = S.goals.indexOf(v);
+      if (i >= 0) S.goals.splice(i, 1);
+      else if (S.goals.length >= 3) { toast('Можно выбрать до трёх целей'); break; }
+      else S.goals.push(v);
+      commit(); closeSheet(); render();
+      toast(i >= 0 ? 'Убрали из плана: ' + GM[v].n : 'В плане: ' + GM[v].n + ', ' + (S.goals.indexOf(v) === 2 ? '1 занятие' : '2 занятия') + ' в неделю');
+      break;
+    }
+    case 'zshow': openZoneShow(v); break;
     case 'pday': { const [w, d] = v.split('|').map(Number); if (w !== curWeek()) { S.week[S.tier] = clamp(w, 1, TIERS[S.tier].weeks); commit(); } UI.day = d; render(); break; }
     case 'done': { const [key, sid] = v.split('~'); toggleDone(key, sid); render(); break; }
     case 'pick': openPick(v); break;

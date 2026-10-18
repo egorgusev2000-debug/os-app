@@ -904,3 +904,21 @@ main { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
   .hscroll { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: start; }
 }
 .oth .thumb { display: block; }
+/* plan: goals and trainings by zone */
+.goalc { display: grid; gap: 12px; }
+.goals { display: flex; flex-wrap: wrap; gap: 8px; }
+.goal { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px 0 8px; border-radius: 999px; font-weight: 600; font-size: 14px;
+  background: color-mix(in srgb, var(--gc) 14%, var(--surface)); color: var(--ink); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--gc) 35%, transparent); }
+.goal i { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--gc) 22%, transparent); color: transparent; }
+.goal i svg { width: 14px; height: 14px; }
+.goal[aria-pressed="true"] { background: var(--gc); color: #fff; box-shadow: none; }
+.goal[aria-pressed="true"] i { background: rgba(255, 255, 255, .25); color: #fff; }
+.zshow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ztile { position: relative; display: grid; gap: 2px; text-align: left; padding: 8px 8px 12px; border-radius: 20px; min-width: 0;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gc) 30%, var(--surface)), color-mix(in srgb, var(--gc) 8%, var(--surface))); box-shadow: var(--shadow); }
+.ztile .thumb { width: 100%; border-radius: 14px; margin-bottom: 6px; }
+.ztile b { font-weight: 700; font-size: 15.5px; padding-inline: 4px; line-height: 1.2; }
+.ztile small { font-size: 12.5px; color: var(--muted); padding-inline: 4px; }
+.ztile:active { transform: scale(.98); }
+@media (min-width: 744px) { .zshow { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
+.swi .tg svg { width: 16px; height: 16px; } .swi .tg:has(svg) { background: var(--tier); color: var(--on-tier); width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }

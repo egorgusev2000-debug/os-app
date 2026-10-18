@@ -114,3 +114,31 @@ test('приложение одним файлом открывается и р�
   expect(outside, 'страница не должна грузить отдельные файлы').toEqual([]);
   expect(errors).toEqual([]);
 });
+
+test('цель плана добавляет занятия, витрина зон запускает тренировку', async ({ page }, info) => {
+  test.skip(!/^(360|390)-/.test(info.project.name), 'двух размеров достаточно');
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await page.getByText('Пропустить').first().click();
+  const click = sel => page.evaluate(s => document.querySelector(s).click(), sel);
+  await tab(page, 'move');
+  await page.waitForTimeout(500);
+  await click('.goal[data-v="neck"]');
+  await page.waitForTimeout(500);
+  await expect(page.locator('.goal[data-v="neck"][aria-pressed="true"]')).toHaveCount(1);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('os-all-v1')).goals);
+  expect(saved).toContain('neck');
+  // the neck ladder step is in the week now (Tuesday)
+  await click('.pday[data-v$="|1"]');
+  await page.waitForTimeout(400);
+  await expect(page.getByText('Шея: шаг 1').first()).toBeVisible();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-goals.png` });
+  await click('.ztile[data-v="lowback"]');
+  await page.waitForTimeout(500);
+  await expect(page.locator('#sheet .swi').first()).toBeVisible();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-zshow.png` });
+  await click('#sheet .swi');
+  await page.waitForTimeout(800);
+  await expect(page.locator('#player')).toBeVisible();
+  expect(errors).toEqual([]);
+});
