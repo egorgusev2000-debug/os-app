@@ -142,3 +142,20 @@ test('цель плана добавляет занятия, витрина зо
   await expect(page.locator('#player')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('в карточке упражнения есть схема: начало и работа, мышцы', async ({ page }, info) => {
+  test.skip(info.project.name !== '390-dark', 'одного размера достаточно');
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await page.getByText('Пропустить').first().click();
+  await page.evaluate(() => { document.body.insertAdjacentHTML('beforeend', '<button id="tx" data-act="ex" data-v="squat"></button>'); document.getElementById('tx').click(); });
+  await page.waitForTimeout(4000);
+  await expect(page.locator('#ex-scheme canvas')).toHaveCount(2);
+  await expect(page.locator('#ex-scheme .sch-m')).toContainText('ягодичные');
+  // the picture is drawn: the middle of the working pose is not empty
+  const painted = await page.evaluate(() => { const cv = document.querySelectorAll('#ex-scheme canvas')[1]; const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data; let n = 0; for (let i = 3; i < d.length; i += 16) if (d[i] > 0) n++; return n; });
+  expect(painted).toBeGreaterThan(100);
+  await page.locator('#ex-scheme').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-scheme.png` });
+  expect(errors).toEqual([]);
+});

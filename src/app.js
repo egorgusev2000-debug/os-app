@@ -2452,6 +2452,37 @@ function studio() {
   TH.studio = m;
   return m;
 }
+// exercise scheme: start and end pose of the 3D figure in anatomy mode, working muscles in red
+const MUSCLE_RU = { glutes: 'ягодичные', abs: 'прямая мышца живота', obliques: 'косые мышцы живота', delts: 'дельтовидные', quads: 'квадрицепсы', hams: 'задняя поверхность бедра', erectors: 'разгибатели спины', hipflex: 'сгибатели бедра', calves: 'икроножные', rhomboids: 'ромбовидные', lats: 'широчайшие', adductors: 'приводящие бедра', traps: 'трапециевидные', triceps: 'трицепсы', rotator: 'мышцы плечевого сустава', chest: 'грудные', abductors: 'средняя ягодичная', forearms: 'предплечья', feet: 'мышцы стопы', biceps: 'бицепсы', tibialis: 'передняя большеберцовая', serratus: 'передняя зубчатая' };
+const SCHEME_PAL = { skin: '#E3BB9C', top: '#C9CFD6', bottom: '#8A939C', hair: '#2B2420', glow: '#E0261C', floor: '#D5DCE3', mat: '#BFC9D2', wall: '#E9EEF2', dark: 0 };
+function schemeStudio() {
+  if (TH.scheme !== undefined) return TH.scheme;
+  TH.scheme = null;
+  if (!S.set.gl || typeof OS3G === 'undefined' || !OS3G.supported()) return null;
+  const cv = document.createElement('canvas');
+  cv.setAttribute('aria-hidden', 'true');
+  cv.style.cssText = 'position:fixed;left:-4000px;top:0;width:240px;height:240px;pointer-events:none';
+  document.body.appendChild(cv);
+  const m = OS3G.mount(cv, MOVES[Object.keys(MOVES)[0]], { paused: true, interactive: false, pad: 0.12, anatomy: true, palette: SCHEME_PAL });
+  if (!m || !m.drawNow) { try { m && m.destroy(); } catch (e) { } cv.remove(); return null; }
+  return (TH.scheme = m);
+}
+function paintScheme(box, id, tries) {
+  const def = MOVES[id], st = schemeStudio();
+  if (!box || !box.isConnected || !def || !st) { if (box && !st) box.hidden = true; return; }
+  if (!st.ready && (tries || 0) < 25) { setTimeout(() => paintScheme(box, id, (tries || 0) + 1), 200); return; }
+  const pr = OS3D.prep(Object.assign({}, def, { ease: 'cr' }));
+  st.setDef(def);
+  box.querySelectorAll('canvas').forEach((cv, i) => {
+    const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (!w || !h) return;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    st.canvas.style.width = w + 'px'; st.canvas.style.height = h + 'px';
+    st.setTime(i === 0 ? 0 : Math.min(stillMs(def), pr.total - 1));
+    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+    try { ctx.drawImage(st.drawNow(), 0, 0, cv.width, cv.height); } catch (e) { }
+  });
+}
 function hydrate(root) {
   if (!root) return;
   if (!TH.io && 'IntersectionObserver' in window) {
@@ -3035,6 +3066,7 @@ function openEx(id, dose) {
         ['ghost', 'ghost', 'Старт', 'Исходное положение', 'false'],
         ['anat', 'anat', 'Анатомия', 'Анатомический режим: мышцы', String(!!S.set.anat)]
       ].map(([v, icn, lbl, aria, pr]) => `<div class="cb"><button${v === 'speed' ? ' class="spd"' : ''} data-act="exc" data-v="${v}"${pr !== null ? ` aria-pressed="${pr}"` : ''} aria-label="${aria}">${icn ? ic(icn) : '1×'}</button><span aria-hidden="true">${lbl}</span></div>`).join('')}</div>` : '') +
+    (def && S.set.gl && typeof OS3G !== 'undefined' && OS3G.supported() ? `<div class="scheme" id="ex-scheme"><div class="sch-p"><canvas aria-hidden="true"></canvas><span>Начало</span></div><span class="sch-a" aria-hidden="true">${ic('chev')}</span><div class="sch-p"><canvas aria-hidden="true"></canvas><span>Работа</span></div>${(def.m || []).length ? `<p class="sch-m"><b>Работают:</b> ${def.m.map(k => MUSCLE_RU[k]).filter(Boolean).join(', ')}</p>` : ''}</div>` : '') +
     `<div class="dose">${ic('timer')}<span>${esc(dose || doseText(id, e.dose))}</span></div>
     <div class="blk"><h3>Как делать</h3><ol class="steps">${e.how.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
     ${e.err && e.err.length ? `<div class="blk"><h3>Частые ошибки</h3><ul class="errs">${e.err.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>` : ''}
@@ -3049,6 +3081,7 @@ function openEx(id, dose) {
     if (!def) return;
     EXS.speed = 1;
     EXS.m = live('sheet', mountFig(sh.querySelector('#ex-cv'), def, { interactive: true }));
+    requestAnimationFrame(() => paintScheme(sh.querySelector('#ex-scheme'), id));
   });
 }
 function exCtl(v, b) {
@@ -3946,7 +3979,7 @@ document.addEventListener('click', ev => {
     case 'more': UI[v] = !UI[v]; render(); break;
     case 'lessons': openOv('lessons'); break;
     case 'lit': openOv('lit'); break;
-    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' && TH.studio !== undefined) { try { TH.studio.destroy(); TH.studio.canvas.remove(); } catch (e) { } TH.studio = undefined; } if (v === 'gl' || v === 'anat' || v === 'holo') setTimeout(render, 220); break;
+    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' && TH.studio !== undefined) { try { TH.studio.destroy(); TH.studio.canvas.remove(); } catch (e) { } TH.studio = undefined; } if (v === 'gl' && TH.scheme) { try { TH.scheme.destroy(); TH.scheme.canvas.remove(); } catch (e) { } TH.scheme = undefined; } if (v === 'gl' || v === 'anat' || v === 'holo') setTimeout(render, 220); break;
     case 'reset': UI.resetAsk = true; render(); break;
     case 'reset-no': UI.resetAsk = false; render(); break;
     case 'reset-yes': doReset(); break;

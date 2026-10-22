@@ -4,6 +4,7 @@
 //   node tools/build-single.js
 // dist/os-app.html       — для публикации (без <!doctype>/<html>/<head>/<body>: их добавляет claude.ai)
 // dist/os-app.local.html — та же страница в такой же обёртке, для проверки в браузере
+// dist/site/              — сайт для людей: копируется в docs/ ветки site (GitHub Pages)
 const fs = require('fs');
 const path = require('path');
 
@@ -32,4 +33,12 @@ const wrap = p => '<!doctype html><html><head><meta charset=utf8><meta name=view
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist/os-app.html'), page);
 fs.writeFileSync(path.join(root, 'dist/os-app.local.html'), wrap(page));
-console.log('dist/os-app.html', Math.round(page.length / 1024), 'КБ');
+// the public site (GitHub Pages, branch site, folder docs): the same page plus a home-screen icon and app mode
+const siteHead = '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">' +
+  '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Ось">' +
+  '<link rel="apple-touch-icon" href="icon-180.png"><link rel="manifest" href="manifest.webmanifest">';
+fs.mkdirSync(path.join(root, 'dist/site'), { recursive: true });
+fs.writeFileSync(path.join(root, 'dist/site/index.html'), wrap(page).replace('<link rel="icon" href="data:,">', '<link rel="icon" href="icon-180.png">' + siteHead));
+['icon-180.png', 'icon-512.png', 'manifest.webmanifest'].forEach(f => fs.copyFileSync(path.join(root, 'tools/site', f), path.join(root, 'dist/site', f)));
+fs.writeFileSync(path.join(root, 'dist/site/.nojekyll'), '');
+console.log('dist/os-app.html', Math.round(page.length / 1024), 'КБ; сайт — dist/site/');

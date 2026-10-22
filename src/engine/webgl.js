@@ -744,6 +744,8 @@ void main() {
       SK = { sex, ready: true, vao: v, n: d.IDX.length, type: d.IDX instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, rest: e.rest, glb: e.glb || null, tex: null, parts: [] };
       const sk = SK;
       if (d.tex) loadTex(d.tex, t => { sk.tex = t; });
+      // a body without textures (the procedural female body) is ready as soon as it is built
+      else if (!(d.parts || []).length && opts.onReady) setTimeout(() => { if (!st.dead) opts.onReady(); }, 0);
       (d.parts || []).forEach(q => {
         const part = { n: q.n, vao: vao(gl, attrs(q), q.IDX), cnt: q.IDX.length, tex: null };
         sk.parts.push(part);
@@ -1114,7 +1116,7 @@ void main() {
       },
       setPalette(raw) { opts.palette = raw; readP(); },
       drawNow() { draw(); return canvas; },
-      get ready() { const k = ensureSkin(); return !!(k && k.tex && k.parts.every(q => q.tex)); },
+      get ready() { const k = ensureSkin(); return !!(k && (k.tex || !k.glb) && k.parts.every(q => q.tex)); },
       repaint() { readP(); kick(); },
       destroy() {
         st.dead = true; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0;

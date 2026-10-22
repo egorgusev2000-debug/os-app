@@ -922,3 +922,11 @@ main { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
 .ztile:active { transform: scale(.98); }
 @media (min-width: 744px) { .zshow { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); } }
 .swi .tg svg { width: 16px; height: 16px; } .swi .tg:has(svg) { background: var(--tier); color: var(--on-tier); width: 34px; height: 34px; padding: 0; display: grid; place-items: center; }
+/* exercise scheme: start and working pose, muscles in red, on a light «atlas» background in both themes */
+.scheme { display: grid; grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr); align-items: center; gap: 4px; padding: 10px; border-radius: 18px; background: linear-gradient(180deg, #F3F5F8, #DCE2E8); color: #1A2230; }
+.sch-p { display: grid; gap: 4px; justify-items: center; min-width: 0; }
+.sch-p canvas { width: 100%; aspect-ratio: 1; display: block; }
+.sch-p span { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #5A6577; }
+.sch-a svg { width: 22px; height: 22px; color: #C0322B; }
+.sch-m { grid-column: 1 / -1; font-size: 13.5px; color: #2B3544; padding: 2px 4px 0; }
+.sch-m b { color: #C0322B; }
