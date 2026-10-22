@@ -1869,12 +1869,12 @@ const dateLong = k => { const d = kd(k); return d.getDate() + ' ' + MONTHS[d.get
 const S = {
   v: 5, onb: 0, start: '', tier: 'b', places: Object.assign({}, PRESETS[1][2]), ovr: {}, week: { b: 1, a: 1, p: 1 },
   done: {}, owned: {}, log: [], xpArch: 0, zones: {}, focus: [], ach: {}, read: {}, habits: {}, tlog: {}, lday: null,
-  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {}, goals: [],
+  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {}, goals: [], chal: {},
   set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1, holo: 1, ui: 'dark' }, updatedAt: 0
 };
 const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false, prefs: false, allAch: false, allTests: false };
 
-const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'swap', 'easier', 'goals', 'set', 'updatedAt'];
+const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'swap', 'easier', 'goals', 'chal', 'set', 'updatedAt'];
 function persist() { const o = {}; PKEYS.forEach(k => { o[k] = S[k]; }); o.v = 5; return JSON.parse(JSON.stringify(o)); }
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 function apply(d) {
@@ -1896,6 +1896,7 @@ function apply(d) {
   S.light = typeof d.light === 'string' ? d.light : '';
   S.extra = Object.assign({ qg: 0, tc: 0 }, isObj(d.extra) ? d.extra : {});
   S.gut = isObj(d.gut) ? JSON.parse(JSON.stringify(d.gut)) : null;
+  S.chal = isObj(d.chal) ? JSON.parse(JSON.stringify(d.chal)) : {};
   S.xpArch = Number(d.xpArch) || 0;
   S.onb = d.onb ? 1 : 0;
   S.start = typeof d.start === 'string' ? d.start : '';
@@ -2177,8 +2178,10 @@ function stats() {
   let zoneMax = 0; Object.values(S.zones).forEach(z => { zoneMax = Math.max(zoneMax, z.best || 0); });
   let fullWeek = false;
   Object.keys(TIERS).forEach(tier => { for (let w = 1; w <= TIERS[tier].weeks && !fullWeek; w++) { const c = weekCounts(tier, w); if (c.total && c.done === c.total) fullWeek = true; } });
+  let chalDone = 0;
+  CHALLENGES.forEach(c => { if (chalState(c).finished) { chalDone++; xp += c.xpDone; } });
   const lvl = levelOf(xp);
-  const v = { gutDays, gutPassed, xp, lvl, workouts: S.log.length, minutes, morning, pelvic, zonesUsed: zonesUsed.size, habits, lessons, testsDone, improved, streak, best, zoneMax, fullWeek, act, activeToday: act.has(t) };
+  const v = { chalDone, gutDays, gutPassed, xp, lvl, workouts: S.log.length, minutes, morning, pelvic, zonesUsed: zonesUsed.size, habits, lessons, testsDone, improved, streak, best, zoneMax, fullWeek, act, activeToday: act.has(t) };
   MEMO.k = key; MEMO.v = v;
   return v;
 }
@@ -2205,7 +2208,7 @@ const ACH = [
   ['gut7', 'Режим питания', '7 дней с отметками в чек-листе ЖКТ', 'heart', s => s.gutDays >= 7],
   ['gutstage', 'Этап пройден', 'Пройден первый этап восстановления ЖКТ', 'shield', s => s.gutPassed >= 1],
   ['top', 'Атлант', 'Достигнут уровень C1', 'crown', s => s.lvl >= 25]
-];
+].concat(CHALLENGES.map(c => ['ch_' + c.id, c.award[0], c.award[1], c.award[2], () => chalState(c).finished]));
 function checkAch() {
   const st = stats();
   const got = [];
@@ -2215,6 +2218,107 @@ function checkAch() {
 function addLog(e) {
   S.log.push(e);
   while (S.log.length > LOG_MAX) { S.xpArch += S.log[0].x || 0; S.log.shift(); }
+}
+
+/* ---------- челленджи (данные — в src/data/challenges.js) ---------- */
+// Состояние челленджа: сколько дней выполнено, какой день сейчас и когда можно заниматься.
+function chalState(c) {
+  const rec = S.chal[c.id] || {};
+  const done = isObj(rec.done) ? rec.done : {};
+  const n = c.days.length;
+  let cur = -1;
+  for (let i = 0; i < n; i++) if (c.days[i] && !done[i + 1]) { cur = i; break; }
+  const total = c.days.filter(Boolean).length;
+  const cnt = c.days.filter((s, i) => s && done[i + 1]).length;
+  const last = Object.values(done).sort().pop() || '';
+  let from = '';
+  if (last && cur >= 0) { // между тренировками — минимум сутки и дни отдыха из таблицы
+    let gap = 1;
+    for (let i = cur - 1; i >= 0 && !c.days[i]; i--) gap++;
+    from = addDays(last, gap);
+  }
+  return { rec, done, cur, total, cnt, last, from, started: !!rec.start, finished: cur < 0 && cnt === total && total > 0, canToday: cur >= 0 && (!from || today() >= from) };
+}
+function chalCell(c, i, ps) {
+  const sec = c.days[i], day = i + 1;
+  if (!sec) return `<span class="cday rest" title="Отдых"><i>${day}</i><b>отдых</b></span>`;
+  const st = ps.done[day] ? 'done' : i === ps.cur ? 'cur' : 'todo';
+  return `<span class="cday ${st}"><i>${day}</i><b class="num">${sec}</b>${st === 'done' ? ic('check') : ''}</span>`;
+}
+function chalCard(c) {
+  const ps = chalState(c);
+  const dur = s => s >= 60 ? (s % 60 ? Math.floor(s / 60) + ' мин ' + (s % 60) + ' с' : Math.floor(s / 60) + ' мин') : s + ' с';
+  let btn;
+  if (ps.finished) btn = `<p class="small muted center">Челлендж пройден. Награда получена.</p>`;
+  else if (ps.canToday) btn = `<button class="btn wide" data-act="chal-go" data-v="${c.id}">${ic('timer')}${ps.started ? 'Начать день ' + (ps.cur + 1) : 'Начать челлендж'} · ${dur(c.days[ps.cur])}</button>`;
+  else btn = `<button class="btn wide" disabled>${ic('timer')}Следующий день — ${dateLong(ps.from)}</button>`;
+  return `<section class="card chal"><div class="sec-h tight"><h2 class="h3">${esc(c.n)}</h2><span class="small muted num">${ps.cnt} из ${ps.total}</span></div>
+    <p class="small muted">${esc(c.sub)}. Дни отдыха в таблице — без упражнения.</p>
+    <div class="bar" aria-hidden="true"><i style="width:${Math.round(ps.cnt / ps.total * 100)}%"></i></div>
+    <div class="cgrid" role="list" aria-label="Дни челленджа, секунды">${c.days.map((s, i) => chalCell(c, i, ps)).join('')}</div>
+    ${btn}<button class="linkbtn" data-act="chal-how" data-v="${c.id}">Как делать</button></section>`;
+}
+const CH = { id: '', day: 0, sec: 0, t0: 0, phase: '', iv: 0, last: -1 };
+function chalStop() { if (CH.iv) { clearInterval(CH.iv); CH.iv = 0; } }
+function chalRunHtml(c, prep) {
+  return sheetHead(c.n, `<p class="small muted">День ${CH.day} из ${c.days.length}</p>`) +
+    `<div class="chtimer"><p class="chlbl" id="ch-lbl">${prep ? 'Приготовьтесь' : 'Держим'}</p><div class="chbig num" id="ch-t" role="timer" aria-live="off">${prep ? 5 : fmtTime(CH.sec)}</div>
+    <div class="bar" aria-hidden="true"><i id="ch-bar" style="width:0%"></i></div></div>
+    <button class="btn ghost wide" data-act="chal-stop">Остановить</button>`;
+}
+function chalStart(id) {
+  const c = CHALLENGES.find(x => x.id === id);
+  if (!c) return;
+  const ps = chalState(c);
+  if (!ps.canToday) return;
+  audioInit();
+  Object.assign(CH, { id, day: ps.cur + 1, sec: c.days[ps.cur], t0: Date.now(), phase: 'prep', last: -1 });
+  openSheet(chalRunHtml(c, true), () => {
+    chalStop();
+    CH.iv = setInterval(() => chalTick(c), 200);
+  });
+  live('sheet', { destroy: () => { chalStop(); CH.phase = ''; } });
+}
+function chalTick(c) {
+  const t = document.getElementById('ch-t');
+  if (!t) { chalStop(); return; }
+  const el = (Date.now() - CH.t0) / 1000;
+  if (CH.phase === 'prep') {
+    const left = Math.ceil(5 - el);
+    if (left !== CH.last) { CH.last = left; if (left > 0) { t.textContent = left; beep(660, 0.1); } }
+    if (el >= 5) { CH.phase = 'go'; CH.t0 = Date.now(); CH.last = -1; document.getElementById('ch-lbl').textContent = 'Держим'; t.textContent = fmtTime(CH.sec); beep(990, 0.3); vib(120); }
+    return;
+  }
+  const left = Math.max(0, CH.sec - el), L = Math.ceil(left);
+  if (L !== CH.last) {
+    CH.last = L; t.textContent = fmtTime(left);
+    if (L > 0 && L <= 3) beep(660, 0.1);
+    else if (L === Math.floor(CH.sec / 2) && CH.sec >= 40) beep(520, 0.12);
+  }
+  document.getElementById('ch-bar').style.width = Math.min(100, el / CH.sec * 100).toFixed(1) + '%';
+  if (left <= 0) chalFinish(c);
+}
+function chalFinish(c) {
+  chalStop();
+  const day = CH.day, id = c.id, t = today();
+  CH.phase = '';
+  beep(880, 0.4, 0.3); vib([200, 100, 200]);
+  progressed(() => {
+    const rec = S.chal[id] = S.chal[id] || { start: t, done: {} };
+    rec.done[day] = t;
+    addLog({ d: t, h: new Date().getHours(), k: 'c', id, m: Math.max(1, Math.round(CH.sec / 60)), x: c.xpDay });
+  });
+  const ps = chalState(c);
+  if (UI.tab === 'progress') render();
+  openSheet(sheetHead(c.n) + `<div class="chtimer"><div class="chbig">${ic('check')}</div><p class="center"><b>День ${day} выполнен</b></p>
+    <p class="center muted small">${ps.finished ? 'Весь челлендж пройден — награда ваша. Отличная работа!' : (c.days[day] === 0 ? 'Завтра отдых, потом следующий день.' : 'Следующий день — завтра.')}</p></div>
+    <button class="btn wide" data-act="close">Готово</button>`);
+}
+function openChalHow(id) {
+  const c = CHALLENGES.find(x => x.id === id);
+  if (!c) return;
+  openSheet(sheetHead(c.n) + `<div class="blk"><h3>Как делать</h3><p>${esc(c.how)}</p></div>
+    <p class="small muted">Это не замена врача. При болях в спине, шее или плечах сократите время или пропустите день.</p>`);
 }
 
 /* ---------- doses → player blocks ---------- */
@@ -2926,6 +3030,8 @@ function vProgress() {
     <div class="heatwrap"><div class="hdays">${DAYS.map((d, i) => `<span>${i % 2 ? '' : d}</span>`).join('')}</div><div class="heat">${heat}</div></div>
     <div class="legend small muted"><i data-v="0"></i>нет<i data-v="1"></i>занятие<i data-v="2"></i>20+ минут</div></section>
   </div><div class="col">
+  <div class="sec-h"><h2>Челленджи</h2></div>
+  ${CHALLENGES.map(chalCard).join('')}
   <div class="sec-h"><h2>Зоны</h2><button class="lnk" data-act="tab" data-v="body">Карта тела</button></div>
   <section class="card zprog">${ZL.map(z => { const s = zst(z.id); return `<button class="zp" data-act="zone" data-v="${z.id}"><span>${esc(z.n)}</span>${steps5(z.id)}<span class="small muted num">${s.step + 1}/${z.steps.length}</span></button>`; }).join('')}</section>
   <div class="sec-h"><h2>Тесты</h2><span class="small muted">раз в 2–4 недели</span></div>
@@ -3141,7 +3247,7 @@ function openAch(id) {
 }
 function openXpInfo() {
   const st = stats();
-  const rows = [['Упражнение в тренировке', '+8'], ['Вся тренировка из плана', '+40'], ['Комплекс для зоны', '+30'], ['Отметка «сделано» без таймера', '+25'], ['Привычка дня', '+5'], ['Прочитанный урок', '+10'], ['Записанный тест', '+15'], ['Каждый день серии', 'до +20']];
+  const rows = [['Упражнение в тренировке', '+8'], ['Вся тренировка из плана', '+40'], ['Комплекс для зоны', '+30'], ['Отметка «сделано» без таймера', '+25'], ['Привычка дня', '+5'], ['Прочитанный урок', '+10'], ['Записанный тест', '+15'], ['День челленджа', '+20'], ['Весь челлендж пройден', '+200'], ['Каждый день серии', 'до +20']];
   const next = [];
   for (let k = st.lvl + 1; k <= Math.min(25, st.lvl + 3); k++) next.push(`<div><span>${esc(lvlTitle(k))}</span><b class="num">${lvlXP(k)} XP</b></div>`);
   openSheet(sheetHead('Очки и уровни') + `<p>Уровни — это позвонки. Вы начинаете с крестца и собираете позвоночник снизу вверх: поясница, грудной отдел, шея. Последние уровни — C2, осевой позвонок, и C1, атлант.</p>
@@ -3974,6 +4080,9 @@ document.addEventListener('click', ev => {
     case 'read': if (!S.read[v]) { progressed(() => { S.read[v] = today(); }); toast('Урок прочитан, +10 XP'); } openLesson(v); if (!ovOpen() && !(UI.tab === 'move' && UI.mv === 'ex')) render(); else if (ovOpen()) renderOv(true); break;
     case 'test': openTest(v); break;
     case 'ach': openAch(v); break;
+    case 'chal-go': chalStart(v); break;
+    case 'chal-stop': closeSheet(); break;
+    case 'chal-how': openChalHow(v); break;
     case 'xpinfo': openXpInfo(); break;
     case 'prefs': UI.prefs = !UI.prefs || b.classList.contains('gearb'); render(); if (UI.prefs) { const el = document.getElementById('prefs'); if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); } break;
     case 'more': UI[v] = !UI[v]; render(); break;

@@ -159,3 +159,26 @@ test('в карточке упражнения есть схема: начало
   await page.screenshot({ path: `test-results/shots/${info.project.name}-scheme.png` });
   expect(errors).toEqual([]);
 });
+
+test('челлендж «Планка 30 дней»: таблица, таймер, отметка дня', async ({ page }, info) => {
+  const errors = collectErrors(page);
+  await page.clock.install();
+  await page.goto('/');
+  await page.getByText('Пропустить').first().click();
+  await tab(page, 'progress');
+  await expect(page.locator('.cday')).toHaveCount(30);
+  expect(await page.locator('.cday.rest').count()).toBe(4);
+  await page.evaluate(() => document.querySelector('[data-act="chal-go"]').click());
+  await expect(page.locator('#ch-t')).toBeVisible();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-chal-timer.png` });
+  await page.clock.fastForward(5400);
+  await page.clock.fastForward(21000);
+  await expect(page.getByText('День 1 выполнен')).toBeVisible();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-chal-done.png` });
+  await page.evaluate(() => document.querySelector('#sheet [data-act="close"]').click());
+  await expect(page.locator('.cday.done')).toHaveCount(1);
+  expect(await overflowX(page)).toBeLessThanOrEqual(0);
+  await page.locator('.chal').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-chal-card.png`, fullPage: true });
+  expect(errors).toEqual([]);
+});
