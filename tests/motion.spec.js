@@ -33,3 +33,34 @@ test('движения без рывков и перескоков сустав�
   }, MAX_CM_S);
   expect(bad, 'упражнения с рывком сустава').toEqual([]);
 });
+
+// Кисти и стопы не проходят сквозь пол, кости рук и ног не «переворачиваются» за один кадр
+// (переворот кости даёт перекрученную кожу или руку, вытянутую в ленту).
+test('кисти и стопы над полом, кости без переворотов', async ({ page }, info) => {
+  test.skip(info.project.name !== '360-light', 'достаточно одного размера экрана');
+  await page.goto('/');
+  const bad = await page.evaluate(() => {
+    const out = [];
+    const FR = ['FwL', 'FwR', 'FfL', 'FfR', 'FuL', 'FuR', 'FthL', 'FthR', 'FshL', 'FshR'];
+    const turn = (A, B) => { let s = 0; for (let i = 0; i < 3; i++) s += A[i] * B[i] + A[i + 3] * B[i + 3] + A[i + 6] * B[i + 6]; return Math.acos(Math.max(-1, Math.min(1, (s - 1) / 2))) * 180 / Math.PI; };
+    Object.entries(MOVES).forEach(([id, d0]) => {
+      const def = Object.assign({}, d0, { ease: d0.ease || 'cr' });
+      delete def._pr;
+      const pr = OS3D.prep(def);
+      let prev = null, below = 0, flip = 0;
+      for (let t = 0; t < pr.total; t += 1000 / 60) {
+        const sk = OS3D.solve(OS3D.sample(pr, t).p);
+        if (prev) FR.forEach(k => { if (sk[k] && prev[k]) flip = Math.max(flip, turn(sk[k], prev[k])); });
+        prev = {}; FR.forEach(k => { if (sk[k]) prev[k] = sk[k].slice(); });
+        if (def.floor !== false) {
+          const sk2 = OS3D.frameModel(pr, t, def).model.sk;
+          ['WL', 'WR', 'TL', 'TR', 'AL', 'AR', 'ToeL', 'ToeR'].forEach(k => { below = Math.max(below, -sk2[k][1]); });
+        }
+      }
+      if (below > 3) out.push(`${id}: под полом на ${below.toFixed(1)} см`);
+      if (flip > 120) out.push(`${id}: кость повернулась на ${Math.round(flip)}° за кадр`);
+    });
+    return out;
+  });
+  expect(bad, 'упражнения с ошибками положения').toEqual([]);
+});

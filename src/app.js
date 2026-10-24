@@ -1310,6 +1310,7 @@ function buildKit() {
     tab: 'path', day: TODAY, fseg: 'cmenu', menu: 'm14', mday: 0, plate: 'stomach',
     ptab: 'list', kcat: 'all', cmeal: 'bf', bsel: [], mix: null
   };
+  let symOpen = false; // the long list of complaints is folded once something is ticked
 
   function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   function obj(v) { return v && typeof v === 'object' && !Array.isArray(v) ? v : null; }
@@ -1394,10 +1395,11 @@ function buildKit() {
     const route = routeProtos();
     const st = SM[state.stage];
     const dayN = Math.max(1, daysBetween(state.stageStart, TODAY) + 1);
-    const intro = `<section class="hero"><span class="eyebrow">Восстановление ЖКТ по этапам</span><h2>Шаг за шагом — от тарелки к ремиссии</h2>
+    const ti = todayItems(TODAY), dd = state.done[TODAY] || {}, tn = ti.filter(i => dd[i.k]).length;
+    const intro = `<section class="hero"><span class="eyebrow">Мой этап</span><h2>Этап ${st.n}: ${esc(st.t)}</h2>
       <p class="lead">Сначала питание и режим, затем слизистая, функции органов, микрофлора — и жизнь в ремиссии. Нервная система — на всём пути.</p>
       ${heroMap()}
-      <div class="now">${tile(STAGE_ART[st.id], STAGE_COL[st.id], 'solid')}<span style="min-width:0"><b>Этап ${st.n} · ${esc(st.t)}</b><small>день ${dayN} · ${esc(st.dur)}</small></span></div>
+      <div class="now">${tile(STAGE_ART[st.id], STAGE_COL[st.id], 'solid')}<span style="min-width:0"><b>День ${dayN} · ${esc(st.dur)}</b><small>Сегодня отмечено ${tn} из ${ti.length}</small></span>${ti.length ? `<span class="nowring" style="--p:${Math.round(tn / ti.length * 100)}"><i>${tn === ti.length ? CHECK : tn}</i></span>` : ''}</div>
       <div class="acts"><button class="cta" data-act="g:tab" data-v="today">Что делать сегодня</button><button class="btn2" data-act="g:stage" data-v="${st.id}">Открыть этап</button></div>
       <p class="note">Протоколы — вспомогательный инструмент и не заменяют консультацию врача. При острых состояниях, сильных болях, кровотечениях или приёме лекарств согласуйте изменения с лечащим врачом.</p></section>`;
 
@@ -1413,8 +1415,10 @@ function buildKit() {
       ps.sort((a, b) => SM[sid].p.indexOf(a) - SM[sid].p.indexOf(b));
       return `<div class="rstage" style="--c:${STAGE_COL[sid]}"><span class="rnum">${SM[sid].n}</span><div style="min-width:0"><b>${esc(SM[sid].t)}</b><div class="rps">${ps.map((p, i) => `<button class="rp" data-act="g:proto" data-v="${p}"><small>${i === 0 ? 'основной' : i === 1 ? 'поддерживающий' : 'следом'}</small>${esc(PM[p].t)}</button>`).join('')}</div></div></div>`;
     }).join('')}<p class="note">Поддерживающий протокол подключают не раньше чем через 2 недели после основного. Нервная система — параллельно.</p></div>` : `<p class="empty">Отметьте, что вас беспокоит, — здесь появится ваш маршрут по этапам.</p>`;
-    const routeCard = `<section class="card" style="display:grid;gap:12px"><div><span class="eyebrow">Мой маршрут</span><h2 class="h2">Что беспокоит</h2></div>
-      <div class="pchips sylist">${SYMPTOMS.map(([id, t]) => `<button class="pc" data-act="g:sym" data-v="${id}" aria-pressed="${!!state.sym[id]}">${esc(t)}</button>`).join('')}</div>${routeList}</section>`;
+    const open = symOpen || !chosen;
+    const syms = open ? `<div class="pchips sylist">${SYMPTOMS.map(([id, t]) => `<button class="pc" data-act="g:sym" data-v="${id}" aria-pressed="${!!state.sym[id]}">${esc(t)}</button>`).join('')}</div>` : '';
+    const routeCard = `<section class="card" style="display:grid;gap:12px"><div class="rh"><div><span class="eyebrow">Мой маршрут</span><h2 class="h2">Что беспокоит</h2></div>${chosen ? `<button class="btn2" data-act="g:symopen" aria-expanded="${open}">${open ? 'Готово' : 'Изменить'}</button>` : ''}</div>
+      ${chosen && !open ? `<p class="small muted">Отмечено: ${chosen}. Маршрут ниже подобран под это.</p>` : ''}${!chosen && !symOpen ? `<p class="small muted">Отметьте, что беспокоит, — приложение соберёт ваш маршрут по этапам и подскажет протоколы.</p><button class="cta" data-act="g:symopen">Отметить, что беспокоит</button>` : syms}${chosen ? routeList : ''}</section>`;
 
     const cur = STAGE_ORDER.indexOf(state.stage);
     const timeline = `<section class="card" style="display:grid;gap:4px"><span class="eyebrow">Этапы</span>
@@ -1426,7 +1430,7 @@ function buildKit() {
         return `<li style="--c:${STAGE_COL[s.id]};${nx ? '--c2:' + STAGE_COL[nx.id] : ''}"><button class="srow2" data-act="g:stage" data-v="${s.id}" data-s="${status}">${tile(STAGE_ART[s.id], STAGE_COL[s.id], status === 'next' ? '' : 'solid').replace('</span></span>', `</span><i>${status === 'done' ? CHECK : s.n}</i></span>`)}<span class="sbody"><b>${esc(s.t)}</b><small>${esc(s.s)}</small><span class="sdur">${esc(s.dur)}</span>${chips ? `<span class="schips">${chips}</span>` : ''}</span></button></li>`;
       }).join('')}</ol></section>`;
 
-    const r5 = `<section class="card" style="display:grid;gap:10px"><div><span class="eyebrow">Программа 5R</span><h2 class="h2">Как этапы складываются в систему</h2></div>${r5Table()}<button class="btn2" data-act="g:theory" data-v="t_5r" style="justify-self:start">Подробнее</button></section>`;
+    const r5 = `<details class="card r5card"><summary><span><span class="eyebrow">Программа 5R</span><b class="h2">Как этапы складываются в систему</b></span><span class="chev" aria-hidden="true"></span></summary><div class="r5in">${r5Table()}<button class="btn2" data-act="g:theory" data-v="t_5r" style="justify-self:start">Подробнее</button></div></details>`;
     return `<div class="screen">${intro}${routeCard}${timeline}${r5}</div>`;
   }
   function r5Table() {
@@ -1765,7 +1769,8 @@ function buildKit() {
         if (nx) { state.stage = nx; state.stageStart = TODAY; }
         commit(); openSheet(stageSheet(state.stage)); render(); break;
       }
-      case 'sym': if (state.sym[v]) delete state.sym[v]; else state.sym[v] = 1; commit(); render(); break;
+      case 'sym': if (state.sym[v]) delete state.sym[v]; else state.sym[v] = 1; symOpen = true; commit(); render(); break;
+      case 'symopen': symOpen = !symOpen; render(); break;
       case 'proto': openSheet(protoSheet(v)); break;
       case 'setp': {
         const r = b.dataset.r;
@@ -1864,12 +1869,12 @@ const dateLong = k => { const d = kd(k); return d.getDate() + ' ' + MONTHS[d.get
 const S = {
   v: 5, onb: 0, start: '', tier: 'b', places: Object.assign({}, PRESETS[1][2]), ovr: {}, week: { b: 1, a: 1, p: 1 },
   done: {}, owned: {}, log: [], xpArch: 0, zones: {}, focus: [], ach: {}, read: {}, habits: {}, tlog: {}, lday: null,
-  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, chal: {},
-  set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1 }, updatedAt: 0
+  sex: '', age: '', stage: '', gear: {}, light: '', extra: { qg: 0, tc: 0 }, gut: null, swap: {}, easier: {}, goals: [], chal: {},
+  set: { voice: 1, count: 1, sound: 1, vib: 1, gl: 1, holo: 1, ui: 'dark' }, updatedAt: 0
 };
-const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false };
+const UI = { tab: 'today', mv: 'plan', gtab: 'path', day: todayIdx(), q: '', fz: 'all', ft: 'all', view: 'front', sync: 'local', resetAsk: false, showRest: false, prefs: false, allAch: false, allTests: false };
 
-const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'chal', 'set', 'updatedAt'];
+const PKEYS = ['v', 'onb', 'start', 'tier', 'places', 'ovr', 'week', 'done', 'owned', 'log', 'xpArch', 'zones', 'focus', 'ach', 'read', 'habits', 'tlog', 'lday', 'sex', 'age', 'stage', 'gear', 'light', 'extra', 'gut', 'swap', 'easier', 'goals', 'chal', 'set', 'updatedAt'];
 function persist() { const o = {}; PKEYS.forEach(k => { o[k] = S[k]; }); o.v = 5; return JSON.parse(JSON.stringify(o)); }
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 function apply(d) {
@@ -1877,11 +1882,13 @@ function apply(d) {
   if (TIERS[d.tier]) S.tier = d.tier;
   if (isObj(d.places)) { const p = {}; CATS.forEach(([c]) => { p[c] = PLACES[d.places[c]] ? d.places[c] : S.places[c]; }); S.places = p; }
   else if (d.format) { const m = { home: 'home', out: 'outdoor', gym: 'gym', mix: 'gymstr' }[d.format]; const pr = PRESETS.find(x => x[0] === m); if (pr) S.places = Object.assign({}, pr[2]); }
-  ['ovr', 'done', 'owned', 'zones', 'ach', 'read', 'habits', 'tlog'].forEach(k => { S[k] = isObj(d[k]) ? JSON.parse(JSON.stringify(d[k])) : {}; });
+  ['ovr', 'done', 'owned', 'zones', 'ach', 'read', 'habits', 'tlog', 'swap', 'easier'].forEach(k => { S[k] = isObj(d[k]) ? JSON.parse(JSON.stringify(d[k])) : {}; });
   S.week = Object.assign({ b: 1, a: 1, p: 1 }, isObj(d.week) ? d.week : {});
   S.log = Array.isArray(d.log) ? d.log.filter(x => isObj(x) && typeof x.d === 'string').slice(-LOG_MAX) : [];
   S.focus = Array.isArray(d.focus) ? d.focus.filter(z => ZM[z]) : [];
-  S.set = Object.assign({ voice: 1, count: 1, sound: 1, vib: 1, gl: 1, anat: 0 }, isObj(d.set) ? d.set : {});
+  // plan goals; older saves start from the zones chosen in the questionnaire
+  S.goals = (Array.isArray(d.goals) ? d.goals : S.focus).filter(g => GM[g]).slice(0, 3);
+  S.set = Object.assign({ voice: 1, count: 1, sound: 1, vib: 1, gl: 1, anat: 0, holo: 1, ui: 'dark' }, isObj(d.set) ? d.set : {});
   S.sex = d.sex === 'f' || d.sex === 'm' ? d.sex : '';
   S.age = d.age === '40' || d.age === '60' ? d.age : '';
   S.stage = ['preg', 'post', 'meno'].includes(d.stage) ? d.stage : '';
@@ -1984,6 +1991,12 @@ const PREG_SUB = {
   kegel_bridge: ['pelvic_floor', '10 × 5 с сидя'], legs_wall: null, wall_bridge: null, figure4: ['ninety_ninety', '10 переходов'], copenhagen: ['clamshell', '2×12 на сторону'], tgu: null,
   deadlift: ['hinge', '3×8, лёгкий вес'], nordic_curl: ['sl_rdl', '2×8 на ногу'], pullup: ['row', '3×10'], dips: ['pushup', '3×8, от опоры'], sauna: null, rucking: ['walking', '30–40 мин']
 };
+// «Заменить»: original id → chosen exercise; follows a chain of swaps without looping
+function swapId(id) {
+  const seen = new Set([id]);
+  while (S.swap[id] && EXM[S.swap[id]] && !seen.has(S.swap[id])) { id = S.swap[id]; seen.add(id); }
+  return id;
+}
 const lightDose = d => String(d).replace(/^(\d+)\s*×/, (m, n) => Math.max(1, Math.ceil(n / 2)) + '×');
 const isLight = () => S.light === today();
 const ZV0 = {};
@@ -1992,9 +2005,10 @@ function applyProfile() {
   const sub = preg ? Object.assign({}, JUMP_SUB, PREG_SUB) : post ? JUMP_SUB : null;
   Object.keys(SESS0).forEach(sid => {
     const s = Object.assign({}, SESS0[sid]);
-    let items = s.items.map(x => x.slice());
-    if (sub) items = items.map(([id, d]) => (id in sub ? (sub[id] ? sub[id].slice() : null) : [id, d])).filter(Boolean);
-    if (light) items = items.map(([id, d]) => (id === 'intervals_4x4' ? ['zone2', '20–30 мин спокойно'] : [id, lightDose(d)]));
+    // the user's own swaps go first («Заменить» in the player), then the pregnancy rules check the result
+    let items = s.items.map(([id, d]) => { const n = swapId(id); return n !== id && !s.items.some(x => x[0] === n) ? [n, EXM[n].dose, id] : [id, d]; });
+    if (sub) items = items.map(([id, d, o]) => (id in sub ? (sub[id] ? [sub[id][0], sub[id][1], o || id] : null) : [id, d, o])).filter(Boolean);
+    if (light) items = items.map(([id, d, o]) => (id === 'intervals_4x4' ? ['zone2', '20–30 мин спокойно', o || id] : [id, lightDose(d), o]));
     const seen = new Set();
     items = items.filter(([id]) => (seen.has(id) ? false : (seen.add(id), true)));
     s.items = items.length ? items : [['walking', '20–30 мин']];
@@ -2023,6 +2037,7 @@ function sessionsFor(tier, week, day) {
   // optional eastern practices: qigong on Tuesday and Friday, tai chi on Wednesday and Saturday
   if (S.extra.qg && (day === 1 || day === 4)) s.push('qg_bdj');
   if (S.extra.tc && (day === 2 || day === 5)) s.push('tc_basic');
+  myGoals().forEach((g, i) => { if (!GOAL_DAYS[i].includes(day)) return; const sid = goalPlanSid(g, tier); if (sid && !s.includes(sid)) s.push(sid); });
   return s;
 }
 function dayStatus(tier, week, day) {
@@ -2045,6 +2060,35 @@ function todayPlan() {
 }
 // extra routines that are not tied to a weekday
 const EXTRA0 = [['office', 'Можно прямо за рабочим столом'], ['b_core', 'Пресс без нагрузки на поясницу'], ['a_core', 'Пресс посильнее'], ['p_core', 'Пресс для продвинутых'], ['lordosis', 'Если поясница прогнута'], ['scol', 'Работа с асимметрией'], ['neck', 'Шея и воротниковая зона'], ['shoulders_b', 'Плечевые суставы'], ['pf_b', 'Тазовое дно, база'], ['pf_a', 'Тазовое дно, сильнее'], ['a_animal', 'Движения на четвереньках']].filter(([sid]) => SESS[sid]);
+/* ---------- «На что работаем»: goals of the plan and trainings by zone ---------- */
+// a zone goal brings its ladder step (as session z_<zone>) and themed sessions; sx limits a goal to one sex
+const GOALS = [
+  { id: 'male', n: 'Мужское здоровье', sub: 'Тазовое дно, сосуды, сила', col: '#2563EB', sx: 'm', s: () => ['pf_m'] },
+  { id: 'female', n: 'Женское здоровье', sub: 'Тазовое дно, кости, колени', col: '#DB2777', sx: 'f', s: t => [t === 'b' ? 'pf_b' : 'pf_a'].concat(S.age === '40' || S.age === '60' || S.stage === 'meno' ? ['f_bones'] : []) },
+  { id: 'lowback', n: 'Поясница', col: '#E35A0F', z: 'lowback', s: () => ['b_core', 'lordosis'] },
+  { id: 'neck', n: 'Шея', col: '#0EA5E9', z: 'neck', s: () => ['neck'] },
+  { id: 'posture', n: 'Осанка', col: '#7C3AED', z: 'posture', s: () => ['shoulders_b'] },
+  { id: 'shoulders', n: 'Плечи', col: '#0891B2', z: 'shoulders', s: () => ['shoulders_b'] },
+  { id: 'hips', n: 'Таз и колени', col: '#D97706', z: 'hips', s: () => S.sex === 'f' ? ['f_knee'] : [] },
+  { id: 'core', n: 'Пресс', col: '#DC2626', z: 'core', s: t => [{ b: 'b_core', a: 'a_core', p: 'p_core' }[t]] },
+  { id: 'pelvic', n: 'Тазовое дно', col: '#BE185D', z: 'pelvic', s: t => [t === 'b' ? 'pf_b' : 'pf_a'] },
+  { id: 'feet', n: 'Стопы', col: '#16A34A', z: 'feet', s: () => [] },
+  { id: 'scoliosis', n: 'Сколиоз', col: '#4F46E5', z: 'scoliosis', s: () => ['scol'] }
+];
+const GM = Object.fromEntries(GOALS.map(g => [g.id, g]));
+const goalsShown = () => GOALS.filter(g => (!g.sx || g.sx === (S.sex || 'm')) && (!g.z || ZM[g.z]));
+const myGoals = () => S.goals.map(id => GM[id]).filter(g => g && (!g.sx || g.sx === (S.sex || 'm')));
+const goalSess = (g, tier) => g.s(tier || S.tier).filter(sid => SESS[sid]);
+// the current ladder step of a zone as a session the plan can hold
+function zoneSid(zid) {
+  const z = ZM[zid], st = zst(zid).step, sid = 'z_' + zid, step = z.steps[st];
+  SESS[sid] = { n: z.n + ': шаг ' + (st + 1), c: 'body', items: zoneItems(zid, st), min: '', zone: zid, step: st, sub: step.n };
+  return sid;
+}
+// what a goal adds to the plan: the ladder step for a zone goal, else its first themed session
+const goalPlanSid = (g, tier) => g.z ? zoneSid(g.z) : goalSess(g, tier)[0];
+// goal 1 on Tue and Fri, goal 2 on Wed and Sat, goal 3 on Thu: at most five extra sessions a week
+const GOAL_DAYS = [[1, 4], [2, 5], [3]];
 const extraList = () => (S.extra.qg ? [['qg_bdj', 'Восемь движений цигуна']] : []).concat(S.extra.tc ? [['tc_basic', 'Основы тайцзи']] : [], EXTRA0);
 
 /* ---------- profile: sex and optional practices ---------- */
@@ -2063,7 +2107,7 @@ function applySex() {
 function lessonOk(id) { const t = THEORY[id]; if (!t) return false; if (t.sx && t.sx !== (S.sex || 'm')) return false; if (t.x && !S.extra[t.x]) return false; return true; }
 const exOk = e => !e.x || !!S.extra[e.x];
 const doseText = (id, dose) => S.sex === 'f' && DOSE_F[id] ? dose + ', ' + DOSE_F[id] : dose;
-const doseItems = items => items.map(([id, d]) => [id, doseText(id, d)]);
+const doseItems = items => items.map(([id, d, o]) => [id, doseText(id, d), o || id]);
 
 /* ---------- zones ---------- */
 const zst = id => { const z = S.zones[id]; return z ? { step: z.step || 0, n: z.n || 0 } : { step: 0, n: 0 }; };
@@ -2326,6 +2370,15 @@ function parseDose(dose, e) {
   if (r.reps >= 40) { r.secs = Math.round(r.reps * 0.6); r.reps = 0; }
   return r;
 }
+// «Легче» in the player: fewer reps and seconds, one set less; remembered per exercise
+function easeDose(d) {
+  if (d.interval) { d.interval.n = Math.max(2, Math.round(d.interval.n * 0.6)); return d; }
+  if (d.sets > 2) d.sets--;
+  if (d.reps >= 3) d.reps = Math.max(2, Math.round(d.reps * 0.7));
+  if (d.secs) d.secs = Math.max(10, Math.round(d.secs * 0.7 / 5) * 5);
+  if (d.hold) d.hold = Math.max(3, Math.round(d.hold * 0.7));
+  return d;
+}
 function restsFor(e) { const k = e ? e.k : 'mob'; const set = { str: S.tier === 'b' ? 45 : 60, core: 30, act: 25, flow: 30, cardio: 30 }[k] || 15; return { set, ex: clamp(set, 10, 30) }; }
 // expand [id, dose] items into the steps the player walks through
 function buildBlocks(items) {
@@ -2335,6 +2388,7 @@ function buildBlocks(items) {
     if (!e) return;
     const def = MOVES[id] || null;
     const d = parseDose(dose || e.dose, e);
+    if (S.easier[id]) easeDose(d);
     const rs = restsFor(e);
     if (d.interval) {
       for (let i = 0; i < d.interval.n; i++) {
@@ -2359,6 +2413,8 @@ function blockSec(b) {
   if (b.mode === 'reps') return b.reps * (b.def ? clamp(cycleSec(b.def), 1.5, 12) : 3);
   return 45;
 }
+// minutes of a session as the player will run it (same doses, rests and the easy-day changes)
+const sessMin = s => `${estMin(doseItems(s.items))} мин`;
 function estMin(items) {
   const bl = buildBlocks(items);
   let s = 0;
@@ -2369,6 +2425,9 @@ function estMin(items) {
 /* ---------- icons and small components ---------- */
 const IP = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  down: '<path d="M12 5v13M6.5 12.5L12 18l5.5-5.5"/>',
+  swap: '<path d="M4.5 8.5h14M15 5l3.5 3.5L15 12M19.5 15.5h-14M9 12l-3.5 3.5L9 19"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="6.6"/><path d="M12 2.6v2.8M12 18.6v2.8M2.6 12h2.8M18.6 12h2.8M5.4 5.4l2 2M16.6 16.6l2 2M5.4 18.6l2-2M16.6 7.4l2-2"/>',
   play: '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6.5" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="13.9" y="5" width="3.6" height="14" rx="1" fill="currentColor" stroke="none"/>',
   prev: '<path d="M18 6v12L9 12z" fill="currentColor" stroke="none"/><path d="M6.5 6v12"/>',
@@ -2431,7 +2490,7 @@ function steps5(zid) {
 const thumb = (id, cls) => `<span class="thumb${cls ? ' ' + cls : ''}">${fig(id)}</span>`;
 function ring(v, max, r, sw) {
   const C = 2 * Math.PI * r, f = max ? clamp(v / max, 0, 1) : 0;
-  return `<svg viewBox="0 0 ${2 * r + sw * 2} ${2 * r + sw * 2}" aria-hidden="true"><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="${sw}"/><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--tier)" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - f)).toFixed(1)}"/></svg>`;
+  return `<svg viewBox="0 0 ${2 * r + sw * 2} ${2 * r + sw * 2}" aria-hidden="true"><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="${sw}"/><circle cx="${r + sw}" cy="${r + sw}" r="${r}" fill="none" stroke="var(--rc, var(--tier))" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - f)).toFixed(1)}"/></svg>`;
 }
 function toast(text) {
   const box = document.getElementById('toasts');
@@ -2464,9 +2523,69 @@ function paintThumb(cv) {
     ctx.beginPath(); ctx.moveTo(W / 2, H / 2 - s * 0.45); ctx.lineTo(W / 2, H / 2 + s * 0.1); ctx.moveTo(W / 2, H / 2 + s * 0.35); ctx.lineTo(W / 2, H / 2 + s * 0.4); ctx.stroke();
     return true;
   }
+  // the same 3D figure as everywhere else, drawn by one shared hidden renderer and copied in;
+  // until its skin and hair are loaded (or without WebGL) the quick canvas drawing stands in
+  const st = studio();
+  if (st && st.ready) {
+    try {
+      st.canvas.style.width = w + 'px'; st.canvas.style.height = h + 'px';
+      st.setPalette(OS3D.readPalette(cv)); st.setDef(def); st.setTime(stillMs(def));
+      ctx.clearRect(0, 0, W, H); ctx.drawImage(st.drawNow(), 0, 0, W, H);
+      cv.dataset.g = '1';
+      return true;
+    } catch (e) { }
+  }
   // a still frame costs about a millisecond, so thumbnails are drawn on demand without a cache
   try { OS3D.render(cv, def, stillMs(def), { P: palFor(cv)[1], pad: 0.1 }); } catch (e) { }
   return true;
+}
+// hidden WebGL canvas that paints thumbnails; once it is ready, the quick drawings are repainted in 3D
+function studio() {
+  if (TH.studio !== undefined) return TH.studio;
+  TH.studio = null;
+  if (!S.set.gl || typeof OS3G === 'undefined' || !OS3G.supported()) return null;
+  const cv = document.createElement('canvas');
+  cv.setAttribute('aria-hidden', 'true');
+  cv.style.cssText = 'position:fixed;left:-4000px;top:0;width:200px;height:200px;pointer-events:none';
+  document.body.appendChild(cv);
+  const first = Object.keys(MOVES)[0];
+  const m = OS3G.mount(cv, MOVES[first], { paused: true, interactive: false, pad: 0.1, onReady: () => {
+    document.querySelectorAll('canvas.tcv[data-p]:not([data-g])').forEach(c => { if (c.isConnected) paintThumb(c); });
+  } });
+  if (!m || !m.drawNow) { try { m && m.destroy(); } catch (e) { } cv.remove(); return null; }
+  TH.studio = m;
+  return m;
+}
+// exercise scheme: start and end pose of the 3D figure in anatomy mode, working muscles in red
+const MUSCLE_RU = { glutes: 'ягодичные', abs: 'прямая мышца живота', obliques: 'косые мышцы живота', delts: 'дельтовидные', quads: 'квадрицепсы', hams: 'задняя поверхность бедра', erectors: 'разгибатели спины', hipflex: 'сгибатели бедра', calves: 'икроножные', rhomboids: 'ромбовидные', lats: 'широчайшие', adductors: 'приводящие бедра', traps: 'трапециевидные', triceps: 'трицепсы', rotator: 'мышцы плечевого сустава', chest: 'грудные', abductors: 'средняя ягодичная', forearms: 'предплечья', feet: 'мышцы стопы', biceps: 'бицепсы', tibialis: 'передняя большеберцовая', serratus: 'передняя зубчатая' };
+const SCHEME_PAL = { skin: '#E3BB9C', top: '#C9CFD6', bottom: '#8A939C', hair: '#2B2420', glow: '#E0261C', floor: '#D5DCE3', mat: '#BFC9D2', wall: '#E9EEF2', dark: 0 };
+function schemeStudio() {
+  if (TH.scheme !== undefined) return TH.scheme;
+  TH.scheme = null;
+  if (!S.set.gl || typeof OS3G === 'undefined' || !OS3G.supported()) return null;
+  const cv = document.createElement('canvas');
+  cv.setAttribute('aria-hidden', 'true');
+  cv.style.cssText = 'position:fixed;left:-4000px;top:0;width:240px;height:240px;pointer-events:none';
+  document.body.appendChild(cv);
+  const m = OS3G.mount(cv, MOVES[Object.keys(MOVES)[0]], { paused: true, interactive: false, pad: 0.12, anatomy: true, palette: SCHEME_PAL });
+  if (!m || !m.drawNow) { try { m && m.destroy(); } catch (e) { } cv.remove(); return null; }
+  return (TH.scheme = m);
+}
+function paintScheme(box, id, tries) {
+  const def = MOVES[id], st = schemeStudio();
+  if (!box || !box.isConnected || !def || !st) { if (box && !st) box.hidden = true; return; }
+  if (!st.ready && (tries || 0) < 25) { setTimeout(() => paintScheme(box, id, (tries || 0) + 1), 200); return; }
+  const pr = OS3D.prep(Object.assign({}, def, { ease: 'cr' }));
+  st.setDef(def);
+  box.querySelectorAll('canvas').forEach((cv, i) => {
+    const w = cv.clientWidth, h = cv.clientHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (!w || !h) return;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    st.canvas.style.width = w + 'px'; st.canvas.style.height = h + 'px';
+    st.setTime(i === 0 ? 0 : Math.min(stillMs(def), pr.total - 1));
+    const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+    try { ctx.drawImage(st.drawNow(), 0, 0, cv.width, cv.height); } catch (e) { }
+  });
 }
 function hydrate(root) {
   if (!root) return;
@@ -2516,6 +2635,7 @@ const MV_TABS = [['plan', 'План'], ['body', 'Карта тела'], ['ex', '
 function renderTop() {
   const st = stats();
   document.getElementById('app').dataset.tier = S.tier;
+  document.getElementById('app').dataset.tab = UI.tab;
   document.getElementById('stats').innerHTML =
     `<button class="pill" data-act="tab" data-v="progress" data-on="${st.streak > 0 ? 1 : 0}" aria-label="Серия ${st.streak} ${plural(st.streak, ['день', 'дня', 'дней'])} подряд">${ic('flame', 'fl')}<span>${st.streak}</span></button>` +
     `<button class="pill lv" data-act="tab" data-v="progress" aria-label="Уровень ${esc(lvlTitle(st.lvl))}">${ic('vert', 'vt')}<span>${vcode(st.lvl)}</span></button>`;
@@ -2544,7 +2664,7 @@ function vToday() {
     const place = PLACES[placeOf(S.tier, tp.day, nx.sid)];
     hero = `<section class="card hero">
       <div class="stage hs"><canvas id="hero-cv" aria-hidden="true"></canvas>
-        <div class="over"><span class="tag" id="hero-ex"></span><span class="tag">${esc(nx.s.min)}</span></div></div>
+        <div class="over"><span class="tag" id="hero-ex"></span><span class="tag">${sessMin(nx.s)}</span></div></div>
       <div class="hb">
         <div><div class="lbl">${nx.s.c === 'morning' ? 'Зарядка' : 'Тренировка дня'}</div><h1 class="h1">${esc(nx.s.n)}</h1></div>
         <div class="meta"><span class="tag">${nx.s.items.length} ${plural(nx.s.items.length, ['упражнение', 'упражнения', 'упражнений'])}</span><span class="tag">${ic('pin')}${esc(place)}</span></div>
@@ -2558,7 +2678,7 @@ function vToday() {
   }
   const rows = tp.list.map(x => {
     const isNext = nx && x.key === nx.key;
-    return `<button class="srow" data-act="open-s" data-v="${x.key}~${x.sid}" data-done="${x.done ? 1 : 0}" data-next="${isNext ? 1 : 0}"><span class="st">${x.done ? ic('check') : ''}</span><span><b>${esc(x.s.n)}</b><small>${x.s.c === 'morning' ? 'Зарядка, ' : ''}${esc(x.s.min)}</small></span><span class="go">${x.done ? 'Готово' : ic('chev')}</span></button>`;
+    return `<button class="srow" data-act="open-s" data-v="${x.key}~${x.sid}" data-done="${x.done ? 1 : 0}" data-next="${isNext ? 1 : 0}"><span class="st">${x.done ? ic('check') : ''}</span><span><b>${esc(x.s.n)}</b><small>${x.s.c === 'morning' ? 'Зарядка, ' : ''}${sessMin(x.s)}</small></span><span class="go">${x.done ? 'Готово' : ic('chev')}</span></button>`;
   }).join('');
   const stText = st.streak ? `Серия ${st.streak} ${plural(st.streak, ['день', 'дня', 'дней'])} подряд${st.activeToday ? '' : '. Позанимайтесь сегодня, чтобы не прервать'}` : 'Начните серию сегодня';
   const lastWeek = tp.week >= t.weeks;
@@ -2575,34 +2695,58 @@ function vToday() {
   const office = SESS.office ? `<section class="card office"><div class="oth">${thumb(SESS.office.items[0][0])}</div><div><h2 class="h3">Засиделись?</h2><p class="small muted">Разминка прямо у рабочего стола, ${esc(SESS.office.min)}.</p></div><button class="btn sm ghost" data-act="open-s" data-v="~office" aria-label="Открыть разминку для офиса">${ic('play')}</button></section>` : '';
   const lightRow = `<button class="lrow lightday" data-act="light" role="switch" aria-checked="${isLight() ? 'true' : 'false'}"><span>Лёгкий день<small>Устали, плохо спали или нездоровится — меньше подходов, без интервалов</small></span><span class="toggle" aria-hidden="true"></span></button>`;
   const pregNote = S.sex === 'f' && S.stage === 'preg' ? `<section class="card care"><b>Мягкий режим для беременности</b><p>Без прыжков, упражнений лёжа на животе и долгих лёжа на спине. Остановитесь и свяжитесь с врачом, если появились кровотечение, головокружение, боль в груди или животе, регулярные схватки.</p><button class="btn sm ghost" data-act="lesson" data-v="th_preg">Подробнее</button></section>` : '';
-  return `<div class="hello"><h1 class="h2">${greet()}</h1><p class="muted">${esc(dayStr)}</p></div>
-  ${hero}
-  <section class="card lightcard">${lightRow}</section>
-  ${pregNote}
-  <section class="slist" aria-label="План на сегодня">${rows}</section>
-  <section class="card weekcard">
-    <div class="ring">${ring(wc.done, wc.total, 32, 7)}<div class="rv">${wc.done}<small>из ${wc.total}</small></div></div>
-    <div><b class="h3">Неделя ${tp.week} из ${t.weeks}</b><div class="small muted">${stText}</div>${st.lvl < 25 ? `<div class="small muted">До уровня ${esc(VERT[st.lvl])}: ${lvlXP(st.lvl + 1) - st.xp} XP</div>` : ''}
-      <div class="wdays">${DAYS.map((n, i) => { const v = dayStatus(S.tier, tp.week, i); return `<div class="wd" data-v="${v}"${i === tp.day ? ' data-today="1"' : ''}><i>${v === 'all' ? ic('check') : ''}</i>${n}</div>`; }).join('')}</div>
-    </div>${weekTip}
-  </section>
-  ${focus}
-  ${gutCard()}
-  <section class="card lesson">
+  const weekText = wc.done ? `Сделано ${wc.done} из ${wc.total} занятий недели` : `На этой неделе ${wc.total} ${plural(wc.total, ['занятие', 'занятия', 'занятий'])}, сегодня ${tp.list.length}`;
+  const more = [
+    `<section class="card lesson mini">
     <div class="lt">${ic('book')}<span class="lbl">Урок дня, одна минута</span></div>
     <h2 class="h3">${esc(th.n)}</h2><p class="muted clamp3">${esc(th.p[0])}</p>
     <div class="acts"><button class="btn sm ghost" data-act="lesson" data-v="${lid}">Читать</button>${S.read[lid] ? '<span class="tag">Прочитано</span>' : '<span class="xp">+10 XP</span>'}</div>
+  </section>`,
+    office,
+    S.focus.length ? '' : focus
+  ].filter(Boolean);
+  return `<div class="split"><div class="col">
+  <div class="hello"><h1 class="h2">${greet()}</h1><p class="muted">${esc(dayStr)}</p></div>
+  ${hero}
+  <section class="card lightcard">${lightRow}</section>
+  ${pregNote}
+  <section class="card weekcard">
+    <div class="ring">${ring(wc.done, wc.total, 32, 7)}<div class="rv">${tp.week}<small>неделя</small></div></div>
+    <div><b class="h3">Неделя ${tp.week} из ${t.weeks}</b><div class="small muted">${weekText}</div><div class="small muted">${stText}</div>${st.lvl < 25 ? `<div class="small muted">До уровня ${esc(VERT[st.lvl])}: ${lvlXP(st.lvl + 1) - st.xp} XP</div>` : ''}
+      <div class="wdays">${DAYS.map((n, i) => { const v = dayStatus(S.tier, tp.week, i); return `<div class="wd" data-v="${v}"${i === tp.day ? ' data-today="1"' : ''}><i>${v === 'all' ? ic('check') : ''}</i>${n}</div>`; }).join('')}</div>
+    </div>${weekTip}
   </section>
-  <section class="card"><div class="sec-h tight"><h2 class="h3">Привычки дня</h2><span class="small muted" id="hab-n">${Object.keys(hd).length} из ${hab.length}</span></div>
+  </div><div class="col">
+  ${dayRings()}
+  <section class="slist" id="sl" aria-label="План на сегодня">${rows}</section>
+  <section class="card" id="habcard"><div class="sec-h tight"><h2 class="h3">Привычки дня</h2><span class="small muted" id="hab-n">${Object.keys(hd).length} из ${hab.length}</span></div>
     <div class="habits">${hab.map(([h], i) => `<button class="hrow" data-act="habit" data-v="${i}" aria-pressed="${hd[i] ? 'true' : 'false'}"><span class="box">${ic('check')}</span><span>${esc(h)}</span><span class="xp">+5</span></button>`).join('')}</div>
   </section>
-  ${office}`;
+  ${gutCard()}
+  </div></div>
+  ${S.focus.length ? focus : ''}
+  <div class="sec-h"><h2>Ещё сегодня</h2></div>
+  <div class="hscroll">${more.join('')}</div>
+`;
 }
+// three rings of the day: movement (today's sessions), nutrition (today's checklist), habits
+function dayRings() {
+  const tp = todayPlan(), hd = S.habits[today()] || {}, hab = HABITS[S.tier];
+  const g = typeof GUT !== 'undefined' ? GUT.summary() : null;
+  const R = [
+    ['move', 'Движение', tp.list.filter(x => x.done).length, tp.list.length, 'var(--c-move)', 'sl'],
+    ['food', 'Питание', g ? g.items.filter(i => i.done).length : 0, g ? g.items.length : 0, 'var(--c-food)', 'gutcard'],
+    ['hab', 'Привычки', Object.keys(hd).length, hab.length, 'var(--c-gold)', 'habcard']
+  ].filter(r => r[3]);
+  const all = R.every(r => r[2] >= r[3]);
+  return `<section class="card dayrings" aria-label="Итог дня">${R.map(([k, n, v, m, c, to]) => `<button class="dr" data-act="jump" data-v="${to}" style="--rc:${c}" aria-label="${n}: ${v} из ${m}"><span class="drr">${ring(v, m, 22, 6)}${v >= m ? `<i>${ic('check')}</i>` : ''}</span><b class="num">${v}<small>/${m}</small></b><small>${n}</small></button>`).join('')}${all ? '<p class="dr-all">День закрыт. Так держать!</p>' : ''}</section>`;
+}
+function refreshRings() { const c = document.querySelector('.dayrings'); if (c) c.outerHTML = dayRings(); }
 function gutCard() {
   if (typeof GUT === 'undefined') return '';
   const g = GUT.summary();
   const left = g.items.filter(i => !i.done), n = g.items.length - left.length;
-  return `<section class="card gutcard" style="--gc:${g.col}">
+  return `<section class="card gutcard" id="gutcard" style="--gc:${g.col}">
     <div class="sec-h tight"><div><div class="lbl">Питание и ЖКТ, день ${g.dayN}</div><h2 class="h3">Этап ${g.n}: ${esc(g.title)}</h2></div><span class="small muted num">${n} из ${g.items.length}</span></div>
     <div class="bar gbar" aria-hidden="true"><i style="width:${g.items.length ? Math.round(n / g.items.length * 100) : 0}%"></i></div>
     <div class="habits">${left.slice(0, 3).map(i => `<button class="hrow" data-act="gut-hab" data-v="${esc(i.k)}" aria-pressed="false"><span class="box">${ic('check')}</span><span>${esc(i.t)}</span><span class="xp">+3</span></button>`).join('') || '<p class="small muted">Все пункты дня отмечены.</p>'}</div>
@@ -2638,25 +2782,64 @@ function vPlan() {
   const d = weekOf(S.tier)[day], sess = sessionsFor(S.tier, week, day);
   const cats = catsInTier(S.tier);
   return `<div class="tapes" role="group" aria-label="Уровень">${['b', 'a', 'p'].map(k => `<button class="tsel" data-t="${k}" data-act="tier" data-v="${k}" aria-pressed="${S.tier === k}"><b>${esc(TIERS[k].name)}</b><small>${TIERS[k].weeks} нед., ${esc(TIERS[k].price.toLowerCase())}</small></button>`).join('')}</div>
-  <section class="card tinfo">
+  <div class="split"><div class="col"><section class="card tinfo">
     <p>${esc(t.goal)}</p>
     ${S.tier !== 'b' ? '<p class="small muted">Платный уровень. В тестовой версии открыт.</p>' : ''}
     <details class="more"><summary>Подробнее об уровне</summary><dl class="kv"><dt>Время</dt><dd>${esc(t.time)}</dd><dt>Для кого</dt><dd>${esc(t.who)}</dd><dt>Где</dt><dd>${esc(t.places)}</dd><dt>Что дальше</dt><dd>${esc(t.next)}</dd></dl></details>
     <div class="acts"><button class="btn sm ghost" data-act="places">${ic('pin')}Где занимаетесь</button><button class="btn sm ghost" data-act="equip">${ic('bag')}Инвентарь</button></div>
     <p class="small muted">${cats.map(([c, n]) => `${esc(n)}: ${esc(PLACES[S.places[c]].toLowerCase())}`).join('; ')}</p>
   </section>
-  <section class="card wplan">
-    <div class="wnav"><button class="iconbtn" data-act="week" data-v="-1" aria-label="Предыдущая неделя"${week <= 1 ? ' disabled' : ''}>${ic('back')}</button><span class="wl">Неделя ${week} из ${t.weeks}</span><button class="iconbtn" data-act="week" data-v="1" aria-label="Следующая неделя"${week >= t.weeks ? ' disabled' : ''}>${ic('chev')}</button></div>
-    <div class="bar" aria-hidden="true"><i style="width:${wc.total ? Math.round(wc.done / wc.total * 100) : 0}%"></i></div>
-    <p class="small muted">${wc.done} из ${wc.total} занятий. ${esc(progNote(S.tier, week))}</p>
-    <div class="days7" role="group" aria-label="День недели">${DAYS.map((n, i) => `<button class="dbtn" data-act="day" data-v="${i}" aria-pressed="${day === i}"${i === todayIdx() ? ' data-today="1"' : ''} aria-label="${DAYS_FULL[i]}"><b>${n}</b><i data-v="${dayStatus(S.tier, week, i)}"></i></button>`).join('')}</div>
-  </section>
+  </div><div class="col">${goalsCard()}${pathGrid(week, day)}
+  </div></div>
   <div class="sec-h"><h2>${DAYS_FULL[day]}${day === todayIdx() ? ', сегодня' : ''}</h2><span class="small muted">${esc(d.n)}</span></div>
-  ${sess.map(sid => sessCard(sid, week, day)).join('')}
-  <div class="sec-h"><h2>Комплексы на любой день</h2></div>
+  <div class="sgrid">${sess.map(sid => sessCard(sid, week, day)).join('')}</div>
+  <div class="sec-h"><h2>Тренировки по зонам</h2><span class="small muted">в любой день</span></div>
+  <div class="zshow">${goalsShown().map(g => { const sid = g.z ? null : goalSess(g)[0]; const ex = g.z ? ZM[g.z].steps[zst(g.z).step].ex.map(x => x[0]).find(id => MOVES[id]) : sid && (SESS[sid].items.find(x => MOVES[x[0]]) || [])[0]; return `<button class="ztile" data-act="zshow" data-v="${g.id}" style="--gc:${g.col}">${ex ? thumb(ex) : ''}<b>${esc(g.n)}</b><small>${g.z ? 'Шаг ' + (zst(g.z).step + 1) + ' из ' + ZM[g.z].steps.length : esc(g.sub || '')}</small></button>`; }).join('')}</div>
+  <div class="sec-h"><h2>Ещё комплексы</h2></div>
   <section class="card xprac"><div><h2 class="h3">Восточные практики</h2><p class="small muted">По желанию. Основа курса остаётся восстанавливающей, йога уже в плане.</p></div>
     <div class="rows">${[['qg', 'Цигун: Ба Дуань Цзинь', 'вторник и пятница, 12–15 мин'], ['tc', 'Тайцзи: основы', 'среда и суббота, 15 мин']].map(([k, n, d]) => `<button class="lrow" data-act="extra" data-v="${k}" role="switch" aria-checked="${S.extra[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}</div></section>
-  <div class="progs">${extraList().map(([sid, sub]) => `<button class="prog" data-act="open-s" data-v="~${sid}">${thumb(SESS[sid].items.find(x => MOVES[x[0]])[0])}<b>${esc(SESS[sid].n)}</b><small>${esc(sub)}, ${esc(SESS[sid].min)}</small></button>`).join('')}</div>`;
+  <div class="progs">${extraList().filter(([sid]) => !GOALS.some(g => g.s('b').concat(g.s('a'), g.s('p')).includes(sid))).map(([sid, sub]) => `<button class="prog" data-act="open-s" data-v="~${sid}">${thumb(SESS[sid].items.find(x => MOVES[x[0]])[0])}<b>${esc(SESS[sid].n)}</b><small>${esc(sub)}, ${esc(SESS[sid].min)}</small></button>`).join('')}</div>`;
+}
+// «На что работаем»: up to three goals, each adds short sessions to the week
+function goalsCard() {
+  const mine = S.goals;
+  return `<section class="card goalc"><div><div class="lbl">На что работаем</div><h2 class="h3">${mine.length ? 'Цели плана: ' + mine.length + ' из 3' : 'Выберите до трёх целей'}</h2><p class="small muted">Каждая цель добавляет в неделю короткие занятия на эту зону.</p></div>
+    <div class="goals">${goalsShown().map(g => `<button class="goal" data-act="goal" data-v="${g.id}" aria-pressed="${mine.includes(g.id)}" style="--gc:${g.col}"><i aria-hidden="true">${ic('check')}</i>${esc(g.n)}</button>`).join('')}</div></section>`;
+}
+// trainings of one goal, light to strong
+function openZoneShow(id) {
+  const g = GM[id];
+  if (!g) return;
+  const rows = [];
+  if (g.z) {
+    const z = ZM[g.z], st = zst(g.z).step, step = z.steps[st];
+    rows.push(`<button class="swi" data-act="go-z" data-v="${g.z}">${thumb((step.ex.find(x => MOVES[x[0]]) || step.ex[0])[0])}<span class="swt"><b>Шаг ${st + 1} из ${z.steps.length}: ${esc(step.n)}</b><small>${estMin(step.ex)} мин · ${esc(step.goal)}</small></span><span class="tg">${ic('play')}</span></button>`);
+  }
+  goalSess(g).forEach(sid => { const s = SESS[sid]; rows.push(`<button class="swi" data-act="go-s" data-v="~${sid}">${thumb((s.items.find(x => MOVES[x[0]]) || s.items[0])[0])}<span class="swt"><b>${esc(s.n)}</b><small>${sessMin(s)}, ${s.items.length} упр.</small></span><span class="tg">${ic('play')}</span></button>`); });
+  const on = S.goals.includes(id);
+  openSheet(sheetHead(g.n, `<p class="small muted">${g.z ? 'Лестница от мягких упражнений к сильным: каждый шаг — 6 занятий, потом проверка.' : esc(g.sub || '')}</p>`) +
+    `<div class="swl">${rows.join('')}</div>
+    <div class="acts">${g.z ? `<button class="btn sm ghost" data-act="zone" data-v="${g.z}">Вся лестница</button>` : ''}<button class="btn sm${on ? ' ghost' : ''}" data-act="goal" data-v="${id}">${on ? 'Убрать из плана' : 'Добавить в план'}</button></div>`);
+}
+// the course as a grid of days, four weeks at a time: done days ticked, today outlined, later days dimmed
+function pathGrid(week, day) {
+  const t = TIERS[S.tier], w0 = Math.floor((week - 1) / 4) * 4 + 1, w1 = Math.min(t.weeks, w0 + 3), td = todayIdx();
+  let done = 0, all = 0, tiles = '';
+  for (let w = w0; w <= w1; w++) for (let d = 0; d < 7; d++) {
+    const st = dayStatus(S.tier, w, d), n = (w - 1) * 7 + d + 1;
+    const when = w < week || (w === week && d < td) ? 'past' : w === week && d === td ? 'today' : 'future';
+    const sids = sessionsFor(S.tier, w, d), main = sids.find(x => SESS[x] && SESS[x].c !== 'morning') || sids[0];
+    const id = main && SESS[main] ? (SESS[main].items.find(x => MOVES[x[0]]) || [])[0] : null;
+    all++; if (st === 'all') done++;
+    tiles += `<button class="pday" data-act="pday" data-v="${w}|${d}" data-s="${st}" data-when="${when}" aria-pressed="${w === week && d === day}" aria-label="День ${n}, ${DAYS_FULL[d].toLowerCase()}, неделя ${w}${st === 'all' ? ', выполнен' : ''}"><span class="thumb">${id ? fig(id) : ''}</span>${st === 'all' ? `<i class="pd-ok">${ic('check')}</i>` : ''}<span class="pd-n">${n}</span></button>`;
+  }
+  const nav = t.weeks > 4 ? `<div class="pg-nav"><button class="iconbtn" data-act="week" data-v="-4" aria-label="Предыдущие 4 недели"${w0 <= 1 ? ' disabled' : ''}>${ic('back')}</button><button class="iconbtn" data-act="week" data-v="4" aria-label="Следующие 4 недели"${w1 >= t.weeks ? ' disabled' : ''}>${ic('chev')}</button></div>` : '';
+  return `<section class="card wplan pgrid-card">
+    <div class="pg-h"><div><div class="lbl">Ваш путь · ${esc(t.name)}</div><h2 class="h2">${w0 === 1 && w1 === t.weeks ? t.weeks * 7 + ' дней' : 'Недели ' + w0 + '–' + w1 + ' из ' + t.weeks}</h2></div>${nav}</div>
+    <div class="pg-p"><div class="bar" aria-hidden="true"><i style="width:${Math.round(done / all * 100)}%"></i></div><span class="small muted num">${done} из ${all} дней</span></div>
+    <div class="pgrid" role="group" aria-label="Дни курса">${DAYS.map(n => `<span class="wdh" aria-hidden="true">${n}</span>`).join('')}${tiles}</div>
+    <p class="small muted">Неделя ${week}. ${esc(progNote(S.tier, week))}</p>
+  </section>`;
 }
 function sessCard(sid, week, day) {
   const s = SESS[sid], key = dayKey(S.tier, week, day, sid), done = !!S.done[key];
@@ -2664,7 +2847,7 @@ function sessCard(sid, week, day) {
   const ids = s.items.map(x => x[0]);
   const shown = ids.slice(0, 4);
   return `<article class="card sess" data-done="${done ? 1 : 0}">
-    <div class="sh"><button class="sh-t" data-act="open-s" data-v="${key}~${sid}"><b>${esc(s.n)}</b><small>${s.c === 'morning' ? 'Зарядка, ' : ''}${esc(s.min)}, ${ids.length} упр.</small></button>
+    <div class="sh"><button class="sh-t" data-act="open-s" data-v="${key}~${sid}"><b>${esc(s.n)}</b><small>${s.c === 'morning' ? 'Зарядка, ' : ''}${sessMin(s)}, ${ids.length} упр.</small></button>
     <button class="check" data-act="done" data-v="${key}~${sid}" aria-pressed="${done}" aria-label="Отметить «${esc(s.n)}» выполненным">${ic('check')}</button></div>
     <button class="thumbs" data-act="open-s" data-v="${key}~${sid}" aria-label="Состав: ${esc(s.n)}">${shown.map(id => thumb(id)).join('')}${ids.length > 4 ? `<span class="morep">+${ids.length - 4}</span>` : ''}</button>
     <div class="sf"><button class="place" data-act="pick" data-v="${ok}" data-ovr="${isOvr ? 1 : 0}" aria-label="Место: ${PLACES[place]}. Изменить для этого дня">${ic('pin')}${PLACES[place]}</button><span class="grow"></span><button class="btn sm" data-act="go-s" data-v="${key}~${sid}">${ic('play')}Начать</button></div>
@@ -2679,17 +2862,17 @@ const HOTS = {
 };
 const BM = { yaw: 0, anim: 0 };
 function vBody() {
-  return `<section class="card bm-card">
+  return `<div class="split bm-split"><div class="col"><section class="card bm-card">
     <div class="bm-head"><div><h1 class="h2">Карта тела</h1><p class="small muted">Нажмите на зону — откроется лестница упражнений для неё.</p></div>
     <div class="seg3" role="group" aria-label="Вид"><button data-act="bview" data-v="front" aria-pressed="${UI.view === 'front'}">Спереди</button><button data-act="bview" data-v="back" aria-pressed="${UI.view === 'back'}">Сзади</button></div></div>
     <div class="bodymap" id="bodymap"><div class="stage"><canvas id="bm-cv" aria-hidden="true"></canvas></div><svg class="bm-lines" id="bm-lines" aria-hidden="true"></svg><div id="bm-hots"></div></div>
-  </section>
+  </section></div><div class="col">
   <div class="sec-h"><h2>Все зоны</h2><span class="small muted fz-legend">${ic('target')}в фокусе на главной</span></div>
   <section class="card zlist">${ZL.map(z => {
     const s = zst(z.id), on = S.focus.includes(z.id);
     return `<div class="zitem"><button class="zi-main" data-act="zone" data-v="${z.id}"><b>${esc(z.n)}</b><span class="zm">Шаг ${s.step + 1} из ${z.steps.length}: ${esc(z.steps[s.step].n.toLowerCase())}</span></button>
       <button class="fz" data-act="focus" data-v="${z.id}" aria-pressed="${on}" aria-label="${on ? 'Убрать из фокуса' : 'Добавить в фокус'}: ${esc(z.n)}">${ic('target')}</button>${steps5(z.id)}</div>`;
-  }).join('')}</section>`;
+  }).join('')}</section></div></div>`;
 }
 function drawBody(showHots) {
   const box = document.getElementById('bodymap');
@@ -2826,7 +3009,8 @@ function vProgress() {
     heat += '</div>';
   }
   const feel = S.log.filter(e => e.f).slice(-20);
-  const tests = TESTS.map(T => {
+  const tested = TESTS.filter(T => (S.tlog[T.id] || []).length).length;
+  const tests = (UI.allTests ? TESTS : TESTS.slice(0, 3)).map(T => {
     const a = S.tlog[T.id] || [];
     const last = a[a.length - 1];
     let delta = '';
@@ -2834,8 +3018,9 @@ function vProgress() {
     return `<button class="test" data-act="test" data-v="${T.id}"><span><b>${esc(T.n)}</b><span class="small muted">${last ? 'Последний: ' + dateLong(last.d) : 'Ещё не проходили'}</span></span><span class="tv">${last ? `${last.v}<small> ${esc(T.unit)}</small>` : `<span class="linkbtn">Пройти</span>`}${delta ? '<br>' + delta : ''}</span>${spark(a, T.better)}</button>`;
   }).join('');
   const achN = ACH.filter(a => S.ach[a[0]]).length;
+  const achShow = UI.allAch ? ACH : ACH.filter(a => S.ach[a[0]]).concat(ACH.filter(a => !S.ach[a[0]]).slice(0, 3));
   const lessonsAll = Object.keys(THEORY).length;
-  return `<section class="card lvl">${spineSvg(st.lvl)}
+  return `<div class="split"><div class="col"><section class="card lvl"><button class="iconbtn gearb" data-act="prefs" aria-label="Настройки и профиль">${ic('gear')}</button>${spineSvg(st.lvl)}
     <div><div class="lbl">Ваш уровень</div><div class="ln">${esc(lvlTitle(st.lvl))}</div><p class="ls">${esc(lvlRegion(st.lvl))}</p>
       <div class="bar xpbar" aria-hidden="true"><i style="width:${pct}%"></i></div>
       <p class="small muted num">${st.lvl < 25 ? `${st.xp - lo} из ${hi - lo} XP до ${esc(VERT[st.lvl])}` : `${st.xp} XP`}</p>
@@ -2844,36 +3029,50 @@ function vProgress() {
   <section class="card"><div class="sec-h tight"><h2 class="h3">Активность</h2><span class="small muted">12 недель</span></div>
     <div class="heatwrap"><div class="hdays">${DAYS.map((d, i) => `<span>${i % 2 ? '' : d}</span>`).join('')}</div><div class="heat">${heat}</div></div>
     <div class="legend small muted"><i data-v="0"></i>нет<i data-v="1"></i>занятие<i data-v="2"></i>20+ минут</div></section>
+  </div><div class="col">
   <div class="sec-h"><h2>Челленджи</h2></div>
   ${CHALLENGES.map(chalCard).join('')}
   <div class="sec-h"><h2>Зоны</h2><button class="lnk" data-act="tab" data-v="body">Карта тела</button></div>
   <section class="card zprog">${ZL.map(z => { const s = zst(z.id); return `<button class="zp" data-act="zone" data-v="${z.id}"><span>${esc(z.n)}</span>${steps5(z.id)}<span class="small muted num">${s.step + 1}/${z.steps.length}</span></button>`; }).join('')}</section>
   <div class="sec-h"><h2>Тесты</h2><span class="small muted">раз в 2–4 недели</span></div>
-  <section class="card tests">${tests}</section>
+  <section class="card tests">${tested ? '' : '<p class="small muted tintro">Тесты показывают, как меняется тело. Первый займёт пару минут.</p>'}${tests}${TESTS.length > 3 ? `<button class="linkbtn more" data-act="more" data-v="allTests">${UI.allTests ? 'Свернуть' : `Все тесты (${TESTS.length})`}</button>` : ''}</section>
   ${feel.length >= 2 ? `<section class="card"><div class="sec-h tight"><h2 class="h3">Самочувствие после тренировок</h2><span class="small muted">последние ${feel.length}</span></div>${feelChart(feel)}</section>` : ''}
   <div class="sec-h"><h2>Награды</h2><span class="small muted num">${achN} из ${ACH.length}</span></div>
-  <div class="ach">${ACH.map(a => `<button class="badge" data-act="ach" data-v="${a[0]}" data-on="${S.ach[a[0]] ? 1 : 0}"><span class="bi">${ic(S.ach[a[0]] ? a[3] : 'lock')}</span>${esc(a[1])}</button>`).join('')}</div>
+  <div class="ach">${achShow.map(a => `<button class="badge" data-act="ach" data-v="${a[0]}" data-on="${S.ach[a[0]] ? 1 : 0}"><span class="bi">${ic(S.ach[a[0]] ? a[3] : 'lock')}</span>${esc(a[1])}</button>`).join('')}</div>
+  ${ACH.length > achShow.length || UI.allAch ? `<button class="linkbtn more" data-act="more" data-v="allAch">${UI.allAch ? 'Свернуть' : `Все награды (${ACH.length})`}</button>` : ''}
+  </div></div>
   <section class="card rows">
     <button class="lrow" data-act="lessons"><span>Уроки<small>Прочитано ${Object.keys(S.read).length} из ${lessonsAll}</small></span>${ic('chev')}</button>
     <button class="lrow" data-act="lit"><span>Литература и исследования<small>${LIT.length} источников, на которых построен курс</small></span>${ic('chev')}</button>
     <button class="lrow" data-act="equip"><span>Инвентарь<small>Что нужно для вашего плана</small></span>${ic('chev')}</button>
   </section>
+  <section class="card rows"><button class="lrow" data-act="prefs" aria-expanded="${UI.prefs ? 'true' : 'false'}"><span class="gl">${ic('gear')}Настройки и профиль<small>Пол, возраст, голос, звук, графика, сохранение</small></span>${ic('chev')}</button></section>
+  ${UI.prefs ? `<div id="prefs"></div>
   <div class="sec-h"><h2>Профиль</h2></div>
   <section class="card rows">
+    <div class="prow"><span>Оформление</span><div class="seg3" role="group" aria-label="Оформление">${[['dark', 'Тёмное'], ['light', 'Светлое'], ['auto', 'Как в системе']].map(([k, n]) => `<button data-act="ui" data-v="${k}" aria-pressed="${(S.set.ui || 'dark') === k}">${n}</button>`).join('')}</div></div>
     <div class="prow"><span>Кто занимается</span><div class="seg3" role="group" aria-label="Кто занимается"><button data-act="sex" data-v="m" aria-pressed="${S.sex !== 'f'}">Мужчина</button><button data-act="sex" data-v="f" aria-pressed="${S.sex === 'f'}">Женщина</button></div></div>
     <div class="prow"><span>Возраст</span><div class="seg3" role="group" aria-label="Возраст">${[['', 'до 40'], ['40', '40–59'], ['60', '60+']].map(([k, n]) => `<button data-act="age" data-v="${k}" aria-pressed="${(S.age || '') === k}">${n}</button>`).join('')}</div></div>
     ${S.sex === 'f' ? `<div class="prow"><span>Этап</span><div class="seg3 two" role="group" aria-label="Этап жизни">${[['', 'Обычный режим'], ['preg', 'Беременность'], ['post', 'После родов'], ['meno', 'Менопауза']].map(([k, n]) => `<button data-act="stage" data-v="${k}" aria-pressed="${(S.stage || '') === k}">${n}</button>`).join('')}</div></div>` : ''}
     <button class="lrow" data-act="bike" role="switch" aria-checked="${S.gear && S.gear.bike ? 'true' : 'false'}"><span>Есть велосипед<small>Кардио на улице — на велосипеде</small></span><span class="toggle" aria-hidden="true"></span></button>
     ${[['qg', 'Цигун', 'Ба Дуань Цзинь два раза в неделю'], ['tc', 'Тайцзи', 'Основы два раза в неделю']].map(([k, n, d]) => `<button class="lrow" data-act="extra" data-v="${k}" role="switch" aria-checked="${S.extra[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}
     <button class="lrow" data-act="set" data-v="gl" role="switch" aria-checked="${S.set.gl ? 'true' : 'false'}"><span>Новая 3D-графика<small>Объёмная фигура со светом и тенями. Если телефон тормозит — выключите</small></span><span class="toggle" aria-hidden="true"></span></button>
+    <button class="lrow" data-act="set" data-v="holo" role="switch" aria-checked="${S.set.holo ? 'true' : 'false'}"${S.set.gl ? '' : ' disabled'}><span>Голограмма<small>Синяя светящаяся фигура на тёмном фоне. Выключите — будет фигура с кожей и в одежде</small></span><span class="toggle" aria-hidden="true"></span></button>
     <button class="lrow" data-act="set" data-v="anat" role="switch" aria-checked="${S.set.anat ? 'true' : 'false'}"${S.set.gl ? '' : ' disabled'}><span>Анатомический режим<small>Фигура в виде мышц, работающие мышцы — красные. Работает с новой 3D-графикой</small></span><span class="toggle" aria-hidden="true"></span></button>
   </section>
   <div class="sec-h"><h2>Настройки тренировки</h2></div>
-  <section class="card rows">${[['voice', 'Голосовые подсказки', 'Название упражнения, отдых, «осталось 10 секунд»'], ['count', 'Счёт повторов вслух', 'Раз, два, три — в темпе фигуры'], ['sound', 'Звуковые сигналы', 'Короткий сигнал на 3, 2, 1 и в конце'], ['vib', 'Вибрация', 'Если телефон поддерживает']].map(([k, n, d]) => `<button class="lrow" data-act="set" data-v="${k}" role="switch" aria-checked="${S.set[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}</section>
+  <section class="card rows">${[['voice', 'Голосовые подсказки', 'Название упражнения, отдых, «осталось 10 секунд»'], ['count', 'Счёт повторов вслух', 'Раз, два, три — в темпе фигуры'], ['sound', 'Звуковые сигналы', 'Короткий сигнал на 3, 2, 1 и в конце'], ['vib', 'Вибрация', 'Если телефон поддерживает']].map(([k, n, d]) => `<button class="lrow" data-act="set" data-v="${k}" role="switch" aria-checked="${S.set[k] ? 'true' : 'false'}"><span>${n}<small>${d}</small></span><span class="toggle" aria-hidden="true"></span></button>`).join('')}${adaptRow()}</section>
   <section class="card rows">
     <p class="small muted" id="syncline">${syncText()}</p>
     ${UI.resetAsk ? `<div class="confirm"><p>Удалить весь прогресс: отметки, серии, тесты и награды? Это нельзя отменить.</p><div class="acts"><button class="btn sm danger" data-act="reset-yes">Удалить</button><button class="btn sm ghost" data-act="reset-no">Отмена</button></div></div>` : `<button class="linkbtn danger-t" data-act="reset">Сбросить прогресс</button>`}
-  </section>`;
+  </section>` : ''}`;
+}
+// swaps and «Легче» chosen in the player; one tap returns the plan as it was
+function adaptRow() {
+  const nS = Object.keys(S.swap).filter(k => EXM[k] && EXM[S.swap[k]]).length, nE = Object.keys(S.easier).filter(k => EXM[k]).length;
+  if (!nS && !nE) return '';
+  const parts = (nS ? [nS + ' ' + plural(nS, ['замена', 'замены', 'замен'])] : []).concat(nE ? [nE + ' ' + plural(nE, ['упражнение', 'упражнения', 'упражнений']) + ' легче'] : []);
+  return `<button class="lrow" data-act="adapt-reset"><span>Мои замены и «Легче»<small>${parts.join(', ')}. Нажмите, чтобы вернуть план как был</small></span>${ic('rotate')}</button>`;
 }
 function feelChart(list) {
   const W = 300, H = 70;
@@ -2891,7 +3090,17 @@ function vFood() { return `<div class="gut" id="gut-root"></div>`; }
 
 /* ---------- render ---------- */
 const reduceMotion = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
+// figure look: the glowing blue hologram on a dark stage (default) or the studio figure with skin and clothes
+function figLook() {
+  // app look: dark by default (it suits the glowing figure), light, or as the phone is set
+  const ui = S.set.ui === 'light' || S.set.ui === 'auto' ? S.set.ui : 'dark';
+  if ((document.documentElement.dataset.ui || 'auto') !== ui) { if (ui === 'auto') delete document.documentElement.dataset.ui; else document.documentElement.dataset.ui = ui; }
+  const on = !!(S.set.gl && S.set.holo);
+  window.OS3_LOOK = on ? 3 : undefined;
+  document.documentElement.dataset.fig = on ? 'holo' : '';
+}
 function render() {
+  figLook();
   kill('main');
   cancelAnimationFrame(BM.anim);
   if (TH.io) TH.io.disconnect(); // drop canvases from the previous screen; unpainted ones are observed again below
@@ -2954,8 +3163,16 @@ function openEx(id, dose) {
   const steps = EX_STEPS[id] || [];
   const tags = `<div class="tagrow">${tape(e.t)}${e.z.map(z => `<span class="tag">${esc(ZM[z].n)}</span>`).join('')}<span class="tag">${esc(KIND[e.k] || '')}</span>${e.eq.filter(q => EQ[q] && q !== 'mat').slice(0, 2).map(q => `<span class="tag">${esc(EQ[q].n)}</span>`).join('')}</div>`;
   const html = sheetHead(e.n, tags) +
-    (def ? `<div class="stage exstage"><canvas id="ex-cv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas><span class="hint">${ic('rotate')}Поверните пальцем</span>
-      <div class="ctl"><button data-act="exc" data-v="play" aria-label="${reduceMotion ? 'Смотреть' : 'Пауза'}">${ic(reduceMotion ? 'play' : 'pause')}</button><button class="spd" data-act="exc" data-v="speed" aria-label="Скорость">1×</button><button data-act="exc" data-v="mirror" aria-pressed="false" aria-label="Другая сторона">${ic('mirror')}</button><button data-act="exc" data-v="glow" aria-pressed="true" aria-label="Работающие мышцы">${ic('glow')}</button><button data-act="exc" data-v="ghost" aria-pressed="false" aria-label="Исходное положение">${ic('ghost')}</button><button data-act="exc" data-v="anat" aria-pressed="${!!S.set.anat}" aria-label="Анатомический режим: мышцы">${ic('anat')}</button></div></div>` : '') +
+    (def ? `<div class="stage exstage"><canvas id="ex-cv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas><span class="hint">${ic('rotate')}Поверните пальцем</span></div>
+      <div class="ctl2">${[
+        ['play', reduceMotion ? 'play' : 'pause', 'Пауза', reduceMotion ? 'Смотреть' : 'Пауза', null],
+        ['speed', null, 'Темп', 'Скорость', null],
+        ['mirror', 'mirror', 'Сторона', 'Другая сторона', 'false'],
+        ['glow', 'glow', 'Мышцы', 'Работающие мышцы', 'true'],
+        ['ghost', 'ghost', 'Старт', 'Исходное положение', 'false'],
+        ['anat', 'anat', 'Анатомия', 'Анатомический режим: мышцы', String(!!S.set.anat)]
+      ].map(([v, icn, lbl, aria, pr]) => `<div class="cb"><button${v === 'speed' ? ' class="spd"' : ''} data-act="exc" data-v="${v}"${pr !== null ? ` aria-pressed="${pr}"` : ''} aria-label="${aria}">${icn ? ic(icn) : '1×'}</button><span aria-hidden="true">${lbl}</span></div>`).join('')}</div>` : '') +
+    (def && S.set.gl && typeof OS3G !== 'undefined' && OS3G.supported() ? `<div class="scheme" id="ex-scheme"><div class="sch-p"><canvas aria-hidden="true"></canvas><span>Начало</span></div><span class="sch-a" aria-hidden="true">${ic('chev')}</span><div class="sch-p"><canvas aria-hidden="true"></canvas><span>Работа</span></div>${(def.m || []).length ? `<p class="sch-m"><b>Работают:</b> ${def.m.map(k => MUSCLE_RU[k]).filter(Boolean).join(', ')}</p>` : ''}</div>` : '') +
     `<div class="dose">${ic('timer')}<span>${esc(dose || doseText(id, e.dose))}</span></div>
     <div class="blk"><h3>Как делать</h3><ol class="steps">${e.how.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
     ${e.err && e.err.length ? `<div class="blk"><h3>Частые ошибки</h3><ul class="errs">${e.err.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>` : ''}
@@ -2970,6 +3187,7 @@ function openEx(id, dose) {
     if (!def) return;
     EXS.speed = 1;
     EXS.m = live('sheet', mountFig(sh.querySelector('#ex-cv'), def, { interactive: true }));
+    requestAnimationFrame(() => paintScheme(sh.querySelector('#ex-scheme'), id));
   });
 }
 function exCtl(v, b) {
@@ -3074,7 +3292,7 @@ function renderOv(keepScroll) {
   const top = OV.stack[OV.stack.length - 1];
   if (!top) { el.hidden = true; el.innerHTML = ''; document.body.style.overflow = ''; return; }
   const y = el.scrollTop;
-  const r = ({ zone: ovZone, lit: ovLit, lessons: ovLessons, onb: ovOnb })[top[0]](top[1]);
+  const r = ({ zone: ovZone, lit: ovLit, lessons: ovLessons, onb: ovOnb, plan: ovPlan })[top[0]](top[1]);
   el.innerHTML = r.html;
   el.hidden = false;
   document.body.style.overflow = 'hidden';
@@ -3084,6 +3302,26 @@ function renderOv(keepScroll) {
 }
 function backOv() { OV.stack.pop(); renderOv(); if (!OV.stack.length) render(); }
 const ovTop = (title, extra) => `<div class="ov-top"><div class="wrap"><button class="iconbtn" data-act="ov-back" aria-label="Назад">${ic('back')}</button><h2 id="ov-title">${esc(title)}</h2>${extra || ''}</div></div>`;
+
+// after the questionnaire: what the plan is, what today holds, one button to start
+function ovPlan() {
+  const t = TIERS[S.tier], tp = todayPlan(), wc = weekCounts(S.tier, tp.week), nx = tp.next;
+  const zones = S.focus.map(z => ZM[z] && ZM[z].n).filter(Boolean);
+  const who = S.sex === 'f' ? ({ preg: 'для беременности, мягкий режим', post: 'после родов', meno: 'в менопаузе' })[S.stage] || 'для женщин' : 'для мужчин';
+  const first = nx ? nx.s.items.map(x => x[0]).find(id => MOVES[id]) : null;
+  const html = `<div class="wrap ov-body planov">
+    <div class="plan-h"><div class="lbl">Ваш план готов</div><h1 class="h1">${esc(t.name)} уровень</h1><p class="muted">${esc(t.goal)}</p></div>
+    ${first ? `<div class="plan-fig">${thumb(first, 'big')}</div>` : ''}
+    <ul class="plan-l">
+      ${nx ? `<li>${ic('play')}<span><b>Сегодня: ${esc(nx.s.n)}</b><small>${sessMin(nx.s)}, ${nx.s.items.length} ${plural(nx.s.items.length, ['упражнение', 'упражнения', 'упражнений'])}</small></span></li>` : ''}
+      <li>${ic('calendar')}<span><b>${wc.total} ${plural(wc.total, ['занятие', 'занятия', 'занятий'])} в неделю, ${t.weeks} ${plural(t.weeks, ['неделя', 'недели', 'недель'])}</b><small>${esc(t.time)}</small></span></li>
+      ${zones.length ? `<li>${ic('target')}<span><b>Ваши зоны: ${esc(zones.join(', ').toLowerCase())}</b><small>Для каждой — лестница упражнений от мягких к сильным</small></span></li>` : ''}
+      <li>${ic('heart')}<span><b>Программа ${esc(who)}</b><small>Слушайте тело: если больно, возьмите «Лёгкий день» или замените упражнение</small></span></li>
+    </ul>
+    <div class="plan-a">${nx ? `<button class="btn wide" data-act="plan-go" data-v="${nx.key}~${nx.sid}">${ic('play')}Начать первую тренировку</button>` : ''}<button class="btn wide ghost" data-act="ov-back">Сначала осмотрюсь</button></div>
+  </div>`;
+  return { html };
+}
 
 function ovZone(zid) {
   const z = ZM[zid], s = zst(zid), on = S.focus.includes(zid), raw = S.zones[zid] || {};
@@ -3178,6 +3416,7 @@ function finishOnb(skip) {
   const o = UI.onb;
   if (!skip) {
     S.focus = o.focus.slice();
+    S.goals = o.focus.filter(g => GM[g]).slice(0, 3);
     S.tier = o.tier;
     S.sex = o.sex || 'm';
     S.age = o.age || '';
@@ -3196,6 +3435,7 @@ function finishOnb(skip) {
   commit();
   applySex();
   OV.stack = OV.stack.filter(x => x[0] !== 'onb');
+  if (!skip) OV.stack.push(['plan']);
   renderOv();
   UI.tab = 'today';
   render();
@@ -3270,6 +3510,7 @@ function speakDose(b) {
   return '';
 }
 const sideName = s => s === 0 ? 'Первая сторона' : s === 1 ? 'Вторая сторона' : '';
+const lc1 = x => x.charAt(0).toLowerCase() + x.slice(1);
 const cueList = e => e.how.concat((e.err || []).map(x => 'Частая ошибка: ' + x.charAt(0).toLowerCase() + x.slice(1)));
 const tempoTxt = () => String(PL.tempo).replace('.', ',') + '×';
 const iisOf = () => Array.from(new Set(PL.blocks.map(b => b.ii)));
@@ -3281,11 +3522,13 @@ function mainLabel(b) { return b.mode === 'reps' || b.mode === 'free' ? `${ic('c
 
 /* open / close */
 function openPlayer(meta, items, auto) {
+  // sessions already carry the swaps (applyProfile); zone steps get them here; a single exercise stays as chosen
+  if (meta.kind !== 'e') items = items.map(([id, d, o]) => { const n = swapId(id); return n !== id && !items.some(x => x[0] === n) ? [n, EXM[n].dose, o || id] : [id, d, o]; });
   items = doseItems(items);
   const blocks = buildBlocks(items);
   if (!blocks.length) { toast('Здесь нет упражнений для таймера'); return; }
   closeSheet();
-  Object.assign(PL, { open: true, blocks, items, i: 0, phase: 'start', meta, count: 0, done: new Set(), paused: false, result: null, said: {}, resumeAfterSheet: false });
+  Object.assign(PL, { open: true, blocks, items, src: items.map(x => x.slice()), i: 0, phase: 'start', meta, count: 0, done: new Set(), paused: false, result: null, said: {}, resumeAfterSheet: false });
   const el = document.getElementById('player');
   el.innerHTML = `<div class="pt" id="ptop"></div><div class="segs" id="psegs"></div><div class="pbody" id="pbody"></div><div class="pask" id="pask" hidden></div>`;
   el.hidden = false;
@@ -3360,6 +3603,78 @@ function plPrev() {
   if (PL.phase !== 'work') return;
   if (PT.el() < 3 && PL.i > 0) PL.i--;
   plWork();
+}
+/* «Легче» and «Заменить»: change the current exercise and remember the choice for the plan */
+function plRebuild(keep) {
+  const b = PL.blocks[PL.i];
+  PL.blocks = buildBlocks(PL.items);
+  const same = PL.blocks.filter(x => x.ii === b.ii);
+  const at = keep ? same.find(x => x.set === b.set && x.side === b.side) || same[same.length - 1] : same[0];
+  PL.i = Math.max(0, PL.blocks.indexOf(at));
+  plWork();
+}
+function plEasy() {
+  const b = PL.blocks[PL.i];
+  if (!b || PL.phase !== 'work' || !b.e.easy) return;
+  if (S.easier[b.id]) delete S.easier[b.id]; else S.easier[b.id] = 1;
+  commit();
+  plRebuild(true);
+  if (S.easier[b.id]) say('Лёгкий вариант. ' + b.e.easy);
+  toast(S.easier[b.id] ? 'Легче — запомнили' : 'Обычная нагрузка');
+}
+// strength swaps only for strength; activation and core mix; mobility, relaxation and flows mix
+const KGRP = k => k === 'act' || k === 'core' ? 'a' : k === 'mob' || k === 'rel' || k === 'flow' ? 'm' : k;
+const FREE_EQ = ['mat', 'towel', 'steps'];
+function plPlace() {
+  const m = PL.meta;
+  if (m.kind !== 's' || !SESS[m.sid]) return 'home';
+  if (m.key) { const k = m.key.split('|'); return placeOf(k[0], Number(k[2]), m.sid); }
+  return S.places[SESS[m.sid].c] || 'home';
+}
+// only what the user has: owned items, weights, the street bar, the gym
+const eqOk = (e, place) => eqFor(e, place).every(q => FREE_EQ.includes(q) || S.owned[q] || (S.gear.weights && (q === 'kb' || q === 'kb2')) || (S.gear.bars && q === 'bar') || (q === 'gym' && (S.gear.gym || place === 'gym')));
+// similar exercises: same group (strength/mobility/cardio), a shared zone, open tier, allowed for pregnancy and after birth
+function swapCands(cur, orig) {
+  const e = EXM[cur], f = S.sex === 'f';
+  const ban = f && S.stage === 'preg' ? Object.assign({}, JUMP_SUB, PREG_SUB) : f && S.stage === 'post' ? JUMP_SUB : {};
+  const used = new Set(PL.items.map(x => x[0])), place = plPlace(), ez = e.z || [];
+  const all = EX.filter(c => !used.has(c.id) && c.id !== orig && !(c.id in ban) && exOk(c) && KGRP(c.k) === KGRP(e.k) && c.k !== 'habit' && TORD[c.t] <= TORD[S.tier] && eqOk(c, place))
+    .map(c => { const zs = (c.z || []).filter(z => ez.includes(z)); return { c, zs, sc: (c.k === e.k ? 3 : 0) + zs.length * 2 + (c.t === e.t ? 1 : 0) + (MOVES[c.id] ? 1 : 0) }; })
+    .filter(x => x.zs.length || x.c.k === e.k)
+    .sort((a, b) => b.sc - a.sc);
+  // similar by zone first; the same kind without a shared zone only when there are too few of those
+  const near = all.filter(x => x.zs.length || !ez.length);
+  return (near.length >= 3 ? near : near.concat(all.filter(x => !near.includes(x)))).slice(0, 8);
+}
+function openSwap() {
+  const b = PL.blocks[PL.i];
+  if (!b || PL.phase !== 'work') return;
+  const orig = PL.items[b.ii][2] || b.id, e = b.e, list = swapCands(b.id, orig);
+  const row = (id, title, sub, tag) => `<button class="swi" data-act="pl-swap-to" data-v="${id}">${thumb(id)}<span class="swt"><b>${esc(title)}</b><small>${esc(sub)}</small></span>${tag ? `<span class="tg">${tag}</span>` : ''}</button>`;
+  const back = orig !== b.id && EXM[orig] ? row(orig, 'Вернуть: ' + EXM[orig].n, 'Как было в плане', '') : '';
+  const rows = list.map(({ c, zs }) => {
+    const zn = zs.map(z => ZM[z] ? ZM[z].n.toLowerCase() : '').filter(Boolean).slice(0, 2).join(', ');
+    const tag = c.lv && e.lv ? (c.lv < e.lv ? 'проще' : c.lv > e.lv ? 'сложнее' : '') : '';
+    return row(c.id, c.n, (KIND[c.k] || '') + (zn ? ' · ' + zn : ''), tag);
+  }).join('');
+  PL.resumeAfterSheet = !PL.paused; plSetPause(true);
+  openSheet(sheetHead('Заменить упражнение', `<p class="small muted">Вместо «${esc(e.n)}». Похожие по зоне и сложности, только с вашим инвентарём.</p>`) +
+    (back || rows ? `<div class="swl">${back}${rows}</div><p class="small muted">Выбор запомним: дальше в плане будет новое упражнение. Вернуть можно здесь же.</p>`
+      : `<p>Похожих упражнений под ваш инвентарь нет. Можно нажать «Легче» или пропустить упражнение кнопкой справа внизу.</p>`));
+}
+function plSwapTo(id) {
+  const b = PL.blocks[PL.i];
+  if (!b || !EXM[id]) return;
+  const it = PL.items[b.ii], orig = it[2] || it[0];
+  if (id === orig) delete S.swap[orig]; else S.swap[orig] = id;
+  applyProfile();
+  commit();
+  const plan = PL.meta.kind === 's' && SESS[PL.meta.sid] ? SESS[PL.meta.sid].items.find(x => (x[2] || x[0]) === orig) : null;
+  const src = PL.src.find(x => (x[2] || x[0]) === orig);
+  const dose = plan && plan[0] === id ? doseText(id, plan[1]) : src && src[0] === id ? src[1] : doseText(id, EXM[id].dose);
+  PL.items[b.ii] = [id, dose, orig];
+  plRebuild(false);
+  toast(id === orig ? 'Вернули как было' : 'Заменили и запомнили');
 }
 function plSetPause(v) {
   PL.paused = v; PT.pause(v); AT.pause(v);
@@ -3455,6 +3770,12 @@ function plFinish(complete) {
       if (old >= 0) S.log.splice(old, 1);
       S.done[meta.key] = 1; entry.key = meta.key;
     }
+    const zs = meta.kind === 's' && SESS[meta.sid] && SESS[meta.sid].zone ? SESS[meta.sid] : null;
+    if (zs && complete) {
+      const z = S.zones[zs.zone] || { step: zs.step, n: 0, best: 0 };
+      if ((z.step || 0) === zs.step) z.n = (z.n || 0) + 1;
+      S.zones[zs.zone] = z;
+    }
     if (meta.kind === 'z' && complete) {
       const z = S.zones[meta.zone] || { step: meta.step, n: 0, best: 0 };
       if ((z.step || 0) === meta.step) z.n = (z.n || 0) + 1;
@@ -3529,7 +3850,7 @@ function plStartHtml() {
   const kindL = meta.kind === 'z' ? 'Комплекс для зоны' : meta.kind === 'e' ? 'Одно упражнение' : (SESS[meta.sid] && SESS[meta.sid].c === 'morning' ? 'Зарядка' : 'Тренировка');
   return `<div class="pstart">
     <div class="ps-h"><div class="lbl2">${kindL}</div><h2>${esc(meta.title)}</h2><p>${items.length} ${plural(items.length, ['упражнение', 'упражнения', 'упражнений'])}, около ${estMin(PL.items)} мин</p></div>
-    <div class="pl">${items.map(([id, dose]) => `<button class="pli" data-act="ex" data-v="${id}" data-dose="${esc(dose || EXM[id].dose)}"><span class="thumb">${fig(id)}</span><span class="pli-t"><b>${esc(EXM[id].n)}</b><small>${esc(dose || EXM[id].dose)}</small></span>${ic('info')}</button>`).join('')}</div>
+    <div class="pl">${items.map(([id, dose, o]) => `<button class="pli" data-act="ex" data-v="${id}" data-dose="${esc(dose || EXM[id].dose)}"><span class="thumb">${fig(id)}</span><span class="pli-t"><b>${esc(EXM[id].n)}</b><small>${esc(dose || EXM[id].dose)}${S.easier[id] ? ', легче' : ''}</small>${o && o !== id && EXM[o] ? `<small class="pl-sw">вместо «${esc(EXM[o].n)}»</small>` : ''}</span>${ic('info')}</button>`).join('')}</div>
     <p class="ps-note">Повторы считаются по циклам фигуры. Если не успеваете, поставьте паузу или нажмите «Готово», когда закончите. Нажмите на упражнение, чтобы посмотреть технику.</p>
     ${meta.kind === 's' && meta.key && !S.done[meta.key] ? `<button class="ps-mark" data-act="pl-mark">Уже сделали без таймера? Отметить выполненным</button>` : ''}
     <button class="go" data-act="pl-begin">${ic('play')}Начать</button>
@@ -3548,15 +3869,16 @@ function plWorkHtml() {
   const b = PL.blocks[PL.i], e = b.e, iis = iisOf();
   const nx = PL.blocks.slice(PL.i + 1).find(x => x.ii !== b.ii);
   const line = blockLine(b);
-  const extra = /[а-яё]/i.test(b.label) && b.mode !== 'free' && !b.phase ? b.label : '';
+  // the dose text, unless it only repeats the count already shown («8 раз» next to «8 повторов»)
+  const extra = /[а-яё]/i.test(b.label) && b.mode !== 'free' && !b.phase && !/^\s*\d+\s*(раз|повтор[а-я]*)\s*$/i.test(b.label) ? b.label : '';
   let ctr;
   if (b.mode === 'reps') ctr = `<div class="counter"><div class="big num" id="pcount">0<small>/${b.reps}</small></div><div class="sub">повторов в темпе фигуры</div><div class="sub num" id="ptime2">0:00</div></div>`;
   else if (b.mode === 'time') ctr = `<div class="tring${b.secs >= 600 ? ' long' : ''}">${pring()}<div class="inner"><div class="big num" id="ptime">${fmtTime(b.secs)}</div></div></div>`;
   else if (b.mode === 'hold') ctr = `<div class="tring hold">${pring()}<div class="inner"><b id="phold">Держите</b><div class="big num" id="ptime">${b.hold}</div><span id="prep" class="num">Повтор 1 из ${b.reps}</span></div></div>`;
   else ctr = `<div class="counter"><div class="big num" id="ptime">0:00</div><div class="sub">${esc(b.label)}</div></div>`;
   return `<div class="pmid">
-    <div class="stage pstage"><canvas id="pcv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas>${b.side !== null ? `<span class="pside">${sideName(b.side)}</span>` : ''}${nx ? `<span class="pnext">${MOVES[nx.id] ? `<canvas class="tcv" data-ex="${nx.id}"></canvas>` : ''}<span>Дальше: ${esc(nx.e.n)}</span></span>` : ''}<button class="ptech" data-act="pl-tech">${ic('info')}Техника</button></div>
-    <div class="pinfo"><div class="pnum num">${iis.indexOf(b.ii) + 1} из ${iis.length}</div><h2 id="pname">${esc(e.n)}</h2><div class="pd">${esc(line)}</div>${extra && extra.toLowerCase() !== line.toLowerCase() ? `<div class="pd2">${esc(extra)}</div>` : ''}</div>
+    <div class="stage pstage"><canvas id="pcv" role="img" aria-label="Анимация: ${esc(e.n)}"></canvas>${b.side !== null ? `<span class="pside">${sideName(b.side)}</span>` : ''}${nx ? `<span class="pnext">${MOVES[nx.id] ? `<canvas class="tcv" data-ex="${nx.id}"></canvas>` : ''}<span>Дальше: ${esc(nx.e.n)}</span></span>` : ''}<button class="ptech" data-act="pl-tech">${ic('info')}Техника</button>${PL.meta.kind !== 'e' || e.easy ? `<span class="padapt">${e.easy ? `<button data-act="pl-easy" aria-pressed="${!!S.easier[b.id]}">${ic(S.easier[b.id] ? 'check' : 'down')}Легче</button>` : ''}${PL.meta.kind !== 'e' ? `<button data-act="pl-swap">${ic('swap')}Заменить</button>` : ''}</span>` : ''}</div>
+    <div class="pinfo"><div class="pnum num">${iis.indexOf(b.ii) + 1} из ${iis.length}</div><h2 id="pname">${esc(e.n)}</h2><div class="pd">${esc(line)}</div>${S.easier[b.id] && e.easy ? `<div class="pd2 peasy">Лёгкий вариант: ${esc(lc1(e.easy))}</div>` : extra && extra.toLowerCase() !== line.toLowerCase() ? `<div class="pd2">${esc(extra)}</div>` : ''}</div>
     <div class="cue" id="pcue" aria-live="polite">${esc(cueList(e)[0] || '')}</div>
   </div>
   <div class="pbot">${ctr}<div class="pctl"><button class="side" data-act="pl-prev" aria-label="Назад">${ic('prev')}</button><button class="main" data-act="pl-main" id="pmain">${mainLabel(b)}</button><button class="side" data-act="pl-next" aria-label="Пропустить">${ic('next')}</button></div></div>`;
@@ -3723,11 +4045,24 @@ document.addEventListener('click', ev => {
     case 'extra': { S.extra[v] = S.extra[v] ? 0 : 1; commit(); const on = !!S.extra[v]; document.querySelectorAll(`[data-act="extra"][data-v="${v}"]`).forEach(x => x.setAttribute('aria-checked', on ? 'true' : 'false')); toast((v === 'qg' ? 'Цигун' : 'Тайцзи') + (on ? ': добавлен в неделю' : ': убран из недели')); if (!ovOpen()) setTimeout(render, 220); break; }
     case 'onb-sex': UI.onb.sex = v; if (v !== 'f') UI.onb.stage = ''; pressOne(b, '[data-act="onb-sex"]'); break;
     case 'onb-x': { UI.onb.extra[v] = UI.onb.extra[v] ? 0 : 1; b.setAttribute('aria-pressed', UI.onb.extra[v] ? 'true' : 'false'); break; }
-    case 'gut-hab': if (typeof GUT !== 'undefined') { GUT.toggleToday(v); const c = document.querySelector('.gutcard'); if (c) c.outerHTML = gutCard(); } break;
+    case 'gut-hab': if (typeof GUT !== 'undefined') { GUT.toggleToday(v); const c = document.querySelector('.gutcard'); if (c) c.outerHTML = gutCard(); refreshRings(); } break;
+    case 'jump': { const el = document.getElementById(v); if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' }); break; }
     case 'gut-go': if (typeof GUT !== 'undefined' && v === 'food') GUT.openFood('cmenu'); gutFood(v); break;
     case 'tier': S.tier = v; UI.day = todayIdx(); commit(); render(); break;
     case 'week': S.week[S.tier] = clamp(curWeek() + Number(v), 1, TIERS[S.tier].weeks); commit(); render(); if (UI.tab === 'today') toast('Неделя ' + S.week[S.tier] + ' из ' + TIERS[S.tier].weeks); break;
     case 'day': UI.day = Number(v); render(); break;
+    case 'ui': S.set.ui = v; commit(); render(); break;
+    case 'goal': {
+      const i = S.goals.indexOf(v);
+      if (i >= 0) S.goals.splice(i, 1);
+      else if (S.goals.length >= 3) { toast('Можно выбрать до трёх целей'); break; }
+      else S.goals.push(v);
+      commit(); closeSheet(); render();
+      toast(i >= 0 ? 'Убрали из плана: ' + GM[v].n : 'В плане: ' + GM[v].n + ', ' + (S.goals.indexOf(v) === 2 ? '1 занятие' : '2 занятия') + ' в неделю');
+      break;
+    }
+    case 'zshow': openZoneShow(v); break;
+    case 'pday': { const [w, d] = v.split('|').map(Number); if (w !== curWeek()) { S.week[S.tier] = clamp(w, 1, TIERS[S.tier].weeks); commit(); } UI.day = d; render(); break; }
     case 'done': { const [key, sid] = v.split('~'); toggleDone(key, sid); render(); break; }
     case 'pick': openPick(v); break;
     case 'setplace': { const [k, pk] = v.split('::'); const sid = k.split('|')[2]; if (!pk || pk === S.places[SESS[sid].c]) delete S.ovr[k]; else S.ovr[k] = pk; commit(); closeSheet(); render(); break; }
@@ -3749,13 +4084,15 @@ document.addEventListener('click', ev => {
     case 'chal-stop': closeSheet(); break;
     case 'chal-how': openChalHow(v); break;
     case 'xpinfo': openXpInfo(); break;
+    case 'prefs': UI.prefs = !UI.prefs || b.classList.contains('gearb'); render(); if (UI.prefs) { const el = document.getElementById('prefs'); if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); } break;
+    case 'more': UI[v] = !UI[v]; render(); break;
     case 'lessons': openOv('lessons'); break;
     case 'lit': openOv('lit'); break;
-    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' || v === 'anat') setTimeout(render, 220); break;
+    case 'set': S.set[v] = S.set[v] ? 0 : 1; commit(); b.setAttribute('aria-checked', S.set[v] ? 'true' : 'false'); if (v === 'gl' && TH.studio !== undefined) { try { TH.studio.destroy(); TH.studio.canvas.remove(); } catch (e) { } TH.studio = undefined; } if (v === 'gl' && TH.scheme) { try { TH.scheme.destroy(); TH.scheme.canvas.remove(); } catch (e) { } TH.scheme = undefined; } if (v === 'gl' || v === 'anat' || v === 'holo') setTimeout(render, 220); break;
     case 'reset': UI.resetAsk = true; render(); break;
     case 'reset-no': UI.resetAsk = false; render(); break;
     case 'reset-yes': doReset(); break;
-    case 'habit': toggleHabit(Number(v), b); break;
+    case 'habit': toggleHabit(Number(v), b); refreshRings(); break;
     case 'focus': toggleFocus(v, b); break;
     case 'zone': closeSheet(); if (PL.open) break; openOv('zone', v); break;
     case 'z-up': { const s = zst(v), z = ZM[v], nx = Math.min(z.steps.length - 1, s.step + 1); S.zones[v] = { step: nx, n: 0, best: Math.max(nx, (S.zones[v] || {}).best || 0) }; progressed(); toast(z.n + ': шаг ' + (S.zones[v].step + 1) + ', «' + z.steps[S.zones[v].step].n + '»'); renderOv(true); break; }
@@ -3767,6 +4104,7 @@ document.addEventListener('click', ev => {
     case 'fz': UI.fz = v; pressOne(b, '[data-act="fz"]'); renderLibList(); break;
     case 'ft': UI.ft = v; pressOne(b, '[data-act="ft"]'); renderLibList(); break;
     case 'ov-back': backOv(); break;
+    case 'plan-go': { backOv(); const [key, sid] = v.split('~'); const s0 = SESS[sid]; if (s0) openPlayer({ kind: 's', sid, key: key || null, title: s0.n }, s0.items, true); break; }
     case 'onb-next': if (UI.onb.step >= 7) finishOnb(false); else if (UI.onb.step === 1 && !UI.onb.sex) toast('Выберите, кто будет заниматься'); else { onbLeave(UI.onb); UI.onb.step++; renderOv(); } break;
     case 'onb-age': UI.onb.age = v; pressOne(b, '[data-act="onb-age"]'); break;
     case 'onb-stage': UI.onb.stage = v; pressOne(b, '[data-act="onb-stage"]'); break;
@@ -3793,6 +4131,10 @@ document.addEventListener('click', ev => {
     case 'pl-add': PL.restDur += 15; setText('prt', fmtTime(PL.restDur - PT.el())); break;
     case 'pl-tempo': PL.tempo = PL.tempo === 1 ? 0.75 : PL.tempo === 0.75 ? 1.25 : 1; b.textContent = tempoTxt(); if (PL.m) PL.m.setSpeed(PL.tempo); break;
     case 'pl-snd': { const on = !(S.set.voice || S.set.sound); S.set.voice = on ? 1 : 0; S.set.sound = on ? 1 : 0; commit(); if (on) audioInit(); else hush(); b.innerHTML = ic(on ? 'sound' : 'mute'); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', on ? 'Выключить звук и голос' : 'Включить звук и голос'); break; }
+    case 'pl-easy': plEasy(); break;
+    case 'adapt-reset': S.swap = {}; S.easier = {}; applyProfile(); commit(); render(); toast('План как был'); break;
+    case 'pl-swap': openSwap(); break;
+    case 'pl-swap-to': closeSheet(); plSwapTo(v); break;
     case 'pl-tech': { const bl = PL.blocks[PL.i]; if (!bl) break; PL.resumeAfterSheet = !PL.paused; plSetPause(true); openEx(bl.id, bl.label); break; }
     case 'pl-mark': { const m = PL.meta; toggleDone(m.key, m.sid, true); plExit(); toast('Отмечено: ' + m.title); break; }
     case 'pl-feel': if (PL.result && PL.result.entry) { PL.result.entry.f = Number(v); pressOne(b, 'button'); } break;
@@ -3822,7 +4164,7 @@ function onTheme() {
   if (UI.tab === 'move' && UI.mv === 'body' && !PL.open) drawBody(true);
 }
 try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onTheme); } catch (e) { }
-try { new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) { }
+try { new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-ui'] }); } catch (e) { }
 let rsz = 0;
 window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (UI.tab === 'move' && UI.mv === 'body' && !PL.open) drawBody(true); }, 150); });
 

@@ -44,7 +44,7 @@ const OS3G = (function () {
   }
 
   /* ---------- shaders ---------- */
-  const HEAD_VARY = `out vec3 vW; out vec3 vN; out float vT; out vec3 vU; out float vC; out float vR; out vec2 vQ; out vec4 vCl; out vec4 vLm;`;
+  const HEAD_VARY = `out vec3 vW; out vec3 vN; out float vT; out vec3 vU; out float vC; out float vR; out vec2 vQ; out vec4 vCl; out vec4 vLm; out vec2 vUV;`;
   const NO_SKIN = `vCl = vec4(0.0); vLm = vec4(0.0, -1.0, 0.0, 0.0);`;
   // capsule with a muscle profile: radius goes ra -> rm (at tm) -> rb along the bone, hemispherical ends
   const VS_CAP = `#version 300 es
@@ -119,8 +119,8 @@ void main() {
 }`;
   const VS_SKIN = `#version 300 es
 precision highp float;
-in vec3 aPos; in vec3 aNor; in vec4 aBI; in vec4 aBW; in vec4 aCl; in vec4 aLm; in float aRel;
-uniform mat4 uVP; uniform vec4 uDQ[34]; uniform float uMir;
+in vec3 aPos; in vec3 aNor; in vec4 aBI; in vec4 aBW; in vec4 aCl; in vec4 aLm; in float aRel; in vec2 aUV;
+uniform mat4 uVP; uniform vec4 uDQ[34]; uniform float uMir; uniform float uRefY; uniform float uInfl;
 ${HEAD_VARY}
 vec3 qrot(vec4 q, vec3 v) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }
 void main() {
@@ -134,31 +134,67 @@ void main() {
   vec3 p = qrot(r, aPos) + 2.0 * (r.w * d.xyz - d.w * r.xyz + cross(r.xyz, d.xyz));
   vec3 n = qrot(r, aNor);
   p.x *= uMir; n.x *= uMir;
-  vW = p; vN = n; vT = 0.0; vU = aPos; vC = 1.0; vR = aRel; vQ = vec2(0.0, -1.0); vCl = aCl; vLm = aLm;
+  p += normalize(n) * uInfl;
+  if (uRefY < 0.0) { p.y = -0.5 - p.y; n.y = -n.y; }
+  vW = p; vN = n; vT = 0.0; vU = aPos; vC = 1.0; vR = aRel; vQ = vec2(0.0, -1.0); vCl = aCl; vLm = aLm; vUV = aUV;
   gl_Position = uVP * vec4(p, 1.0);
 }`;
   const FS_BODY = `#version 300 es
 precision highp float;
-in vec3 vW; in vec3 vN; in float vT; in vec3 vU; in float vC; in float vR; in vec2 vQ; in vec4 vCl; in vec4 vLm;
+in vec3 vW; in vec3 vN; in float vT; in vec3 vU; in float vC; in float vR; in vec2 vQ; in vec4 vCl; in vec4 vLm; in vec2 vUV;
+uniform sampler2D uTex; uniform int uTexOn;
 uniform vec3 uSkin; uniform vec3 uHair;
 uniform int uAnat; uniform float uFib; uniform vec2 uTen; uniform vec3 uTend; uniform vec3 uHot; uniform vec4 uMusX[12];
 uniform vec3 uCol; uniform vec3 uCol2; uniform float uSplit; uniform int uMode;
 uniform vec3 uEye; uniform vec3 uL1; uniform vec3 uL2; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uGlow;
 uniform float uAlpha; uniform float uShine; uniform float uWrap; uniform float uGlowAmt;
 uniform vec4 uMus[12]; uniform vec4 uMusD[12]; uniform int uNM2;
+uniform int uLook; uniform vec3 uRim; uniform float uDarkBg; uniform int uRefl;
+uniform vec4 uCapA[18]; uniform vec4 uCapB[18]; uniform int uNCap;
 out vec4 frag;
+// soft shadow from nearby body parts (each part is a capsule): armpits, the gap between the thighs, a knee folded to the chest
+float bodyAO(vec3 P, vec3 N) {
+  float o = 0.0;
+  for (int i = 0; i < 18; i++) {
+    if (i >= uNCap) break;
+    vec3 a = uCapA[i].xyz, ab = uCapB[i].xyz - a;
+    float t = clamp(dot(P - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+    float r = mix(uCapA[i].w, uCapB[i].w, t);
+    vec3 d = a + ab * t - P; float l = length(d);
+    if (l < r * 1.05) continue;
+    o += clamp(dot(N, d / l), 0.0, 1.0) * (r * r) / (l * l);
+  }
+  return clamp(1.0 - o * 1.7, 0.3, 1.0);
+}
+vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
 void main() {
   vec3 base = uCol;
+  float skinW = 0.0, clothB = 0.0;
+  // skin colour: the painted MakeHuman skin when it is loaded, else the flat palette colour
+  vec3 skinC = uSkin;
+  if (uTexOn == 1 && uMode == 4) skinC = pow(texture(uTex, vUV).rgb, vec3(2.2)) * 0.92;
   if (uMode == 1) base = vT < uSplit ? uCol2 : uCol;
   else if (uMode == 2) { float hl = mix(0.24, -0.56, smoothstep(0.2, -0.5, vU.z)); hl -= 0.12 * smoothstep(0.5, 0.9, abs(vU.x)) * step(0.0, vU.z); if (vU.y < hl) discard; }
   else if (uMode == 3) base = vC > 0.5 ? uCol : uCol2;
+  if (uMode == 5) {
+    vec4 t = texture(uTex, vUV);
+    if (t.a < 0.42) discard;
+    base = pow(t.rgb, vec3(2.2)) * uCol;
+  }
   vec2 fq = vQ; vec2 ften = uTen; float fon = uFib;
   if (uMode == 4) {
     // one-piece body: top above the waist, shorts on the pelvis and upper thighs, skin elsewhere
     bool top = vCl.x > 0.0 && vCl.y > 0.0;
     bool bot = !top && vCl.z > 0.0 && vCl.y <= 0.0;
     if (uAnat == 1) base = vLm.y < -1.5 ? uSkin : uCol;
-    else base = top ? uCol : (bot ? uCol2 : uSkin);
+    else {
+      // soft clothing edges: blend across the seam instead of a stepped cut along the triangles
+      vec2 w = max(fwidth(vCl.xy), vec2(0.02)) * 1.5;
+      float wTop = smoothstep(-w.x, w.x, vCl.x) * smoothstep(-w.y, w.y, vCl.y);
+      float wBot = (1.0 - wTop) * smoothstep(-w.x, w.x, vCl.z) * (1.0 - smoothstep(-w.y, w.y, vCl.y));
+      base = mix(mix(skinC, uCol2, wBot), uCol, wTop);
+      skinW = (1.0 - wTop) * (1.0 - wBot); clothB = wBot;
+    }
     if (vCl.w != 0.0) { if (vCl.w < 0.0) discard; base = uHair; }
     fq = vLm.xy; ften = vLm.zw; fon = uAnat == 1 ? 1.0 : 0.0;
   }
@@ -173,13 +209,66 @@ void main() {
     base = mix(base, uTend, tend * 0.75);
   }
   vec3 N = normalize(vN); vec3 V = normalize(uEye - vW);
+  // glow shell around the hologram: only its far side shows, as a halo just outside the outline
+  if (uRefl == 2) {
+    float nv = dot(N, V);
+    if (nv > 0.0) discard;
+    float h = pow(clamp(-nv, 0.0, 1.0), 1.4) * 0.5 * uAlpha;
+    frag = vec4(vec3(0.16, 0.42, 1.0) * h, h * 0.8);
+    return;
+  }
+  if (uMode == 5 && dot(N, V) < 0.0) N = -N;
   float d1 = max(0.0, (dot(N, uL1) + uWrap) / (1.0 + uWrap));
   float d2 = max(0.0, dot(N, uL2));
   vec3 hemi = mix(uGround, uSky, N.y * 0.5 + 0.5);
   vec3 H = normalize(uL1 + V);
   float sp = pow(max(dot(N, H), 0.0), 34.0) * uShine;
   float fr = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-  vec3 c = base * (hemi * 0.5 + d1 * 0.98 + d2 * 0.22) + sp + fr * 0.16 * uSky;
+  float ao = uNCap > 0 ? bodyAO(vW, N) : 1.0;
+  vec3 c = base * (hemi * 0.5 * ao + d1 * mix(0.98, 0.98 * ao, 0.55) + d2 * 0.22 * ao) + sp * ao + fr * 0.16 * uSky * ao;
+  if (uLook == 1) {
+    // studio: warm key, cool fill, rim light along the outline, light passing through skin at the shadow edge
+    float isSkin = skinW;
+    float k = max(0.0, dot(N, uL1));
+    float kw = max(0.0, (dot(N, uL1) + 0.45) / 1.45);
+    vec3 key = vec3(1.0, 0.95, 0.88) * mix(k, kw, isSkin);
+    vec3 fill = vec3(0.70, 0.78, 0.90) * max(0.0, dot(N, uL2)) * 0.35;
+    vec3 amb = hemi * 0.42;
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 2.6) * max(0.0, dot(N, uRim) + 0.35);
+    vec3 sss = vec3(0.85, 0.28, 0.16) * isSkin * (kw - k) * 0.55;
+    float spec = pow(max(dot(N, H), 0.0), mix(18.0, 46.0, isSkin)) * mix(0.05, 0.16, isSkin);
+    c = base * (amb * ao + key * 1.05 * mix(1.0, ao, 0.55) + fill * ao + sss) + spec * ao + ao * rim * mix(vec3(0.95, 0.97, 1.0), uSky, 0.4) * mix(0.30, 0.55, uDarkBg);
+    c *= 1.0 + 0.12 * vR;
+    c *= mix(0.80, 1.0, smoothstep(0.0, 18.0, vW.y));
+  } else if (uLook == 2) {
+    // clean sculpture: one matte material, soft light, bright outline
+    float lum = dot(base, vec3(0.3, 0.55, 0.15));
+    vec3 clay = mix(vec3(lum), base, 0.18);
+    clay = mix(clay * 0.9, clay * 1.25, skinW * 0.6 + 0.4 * (1.0 - step(0.5, float(uMode == 4))));
+    float kw = max(0.0, (dot(N, uL1) + 0.6) / 1.6);
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 2.4);
+    c = clay * (hemi * 0.55 * ao + kw * 0.85 * mix(1.0, ao, 0.55) + max(0.0, dot(N, uL2)) * 0.18 * ao) + ao * rim * mix(0.22, 0.45, uDarkBg) * vec3(0.92, 0.96, 1.0);
+    c *= 1.0 + 0.16 * vR;
+    c *= mix(0.78, 1.0, smoothstep(0.0, 18.0, vW.y));
+  } else if (uLook == 3) {
+    // neon X-ray: the body stays dark inside, light runs along the outline and over the tops of the muscles
+    float ndv = max(dot(N, V), 0.0), fr = 1.0 - ndv;
+    float edge = pow(fr, 2.2), line = pow(fr, 6.5);
+    // main light from above and behind the figure: shoulders, the top of the back and the arms catch it
+    vec3 Lb = normalize(vec3(0.0, 0.9, 0.0) - V * 0.75);
+    float kb = pow(max(0.0, dot(N, Lb)), 2.0);
+    float k = pow(max(0.0, dot(N, uL1)), 6.0);
+    float top = pow(clamp(N.y, 0.0, 1.0), 3.0);
+    float sp3 = pow(max(dot(N, H), 0.0), 80.0);
+    float back = pow(fr, 1.6) * max(0.0, dot(N, uRim));
+    float det = (uTexOn == 1 && uMode == 4) ? clamp(dot(skinC, vec3(0.3, 0.55, 0.15)) * 2.6, 0.0, 1.2) : 0.8;
+    vec3 deep = vec3(0.0, 0.0015, 0.012), blue = vec3(0.01, 0.13, 1.0), cyan = vec3(0.42, 0.76, 1.0);
+    c = deep + blue * (0.006 + (0.8 * kb + 0.2 * k + 0.05 * top) * ao * det + 0.65 * edge * mix(0.4, 1.0, ao) + 0.35 * back * ao);
+    c += cyan * kb * kb * 0.12 * ao;
+    c += cyan * (line * 0.85 + sp3 * 0.7 * ao);
+    c *= 1.0 + 1.1 * vR;
+    c = mix(c, c * vec3(0.5, 0.62, 0.9), clothB * 0.6);
+  }
   c *= mix(0.74, 1.0, smoothstep(0.0, 14.0, vW.y));
   // muscle tops a little lighter, grooves between muscles a little darker
   c *= 1.0 + (uAnat == 1 ? 0.2 : 0.11) * vR;
@@ -198,12 +287,20 @@ void main() {
     // the whole working muscle is filled, with a soft edge
     g = smoothstep(0.1, 0.5, g * uGlowAmt) * (1.0 - tend * 0.8);
     c = mix(c, uHot * (0.55 + 0.45 * d1) + sp * 0.6, g * 0.9) + uHot * g * 0.12;
+  } else if (uLook == 3) {
+    // hologram: working muscles shine brighter instead of changing colour
+    g = clamp(g * uGlowAmt, 0.0, 0.85);
+    c += uGlow * g * (0.16 + 0.22 * d1);
   } else {
     g = clamp(g * uGlowAmt, 0.0, 0.85);
     c = mix(c, uGlow * (0.72 + 0.28 * d1), g * 0.72) + uGlow * g * 0.1;
   }
+  if (uLook > 0) c = aces(c * 1.15);
   c = pow(max(c, 0.0), vec3(1.0 / 2.2));
-  frag = vec4(c * uAlpha, uAlpha);
+  float al = uAlpha;
+  // reflection in the glossy floor fades with depth
+  if (uRefl == 1) { al *= exp(min(vW.y + 0.25, 0.0) / 16.0) * 0.38; c *= vec3(0.55, 0.75, 1.0); }
+  frag = vec4(c * al, al);
 }`;
   const VS_FLOOR = `#version 300 es
 precision highp float;
@@ -215,13 +312,14 @@ void main() { vec3 p = vec3(uCtr.x + aP.x * uR, -0.25, uCtr.z + aP.y * uR); vW =
 precision highp float;
 in vec3 vW;
 uniform vec3 uCtr; uniform float uR; uniform vec3 uFloor; uniform vec3 uMatCol; uniform vec4 uMat; uniform int uHasMat;
-uniform vec4 uCA[30]; uniform vec4 uCB[30]; uniform int uNC; uniform vec3 uLs; uniform float uDark;
+uniform vec4 uCA[30]; uniform vec4 uCB[30]; uniform int uNC; uniform vec3 uLs; uniform float uDark; uniform int uHolo;
 out vec4 frag;
 float seg2(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0); return length(pa - ba * h); }
 void main() {
   vec2 q = vW.xz - uCtr.xz; float rr = length(q) / uR;
   float a = (1.0 - smoothstep(0.3, 1.0, rr)) * 0.85;
   vec3 col = uFloor;
+  float matIn = 0.0, matLine = 0.0;
   if (uHasMat == 1) {
     vec2 c = vec2(0.5 * (uMat.x + uMat.y), 0.5 * (uMat.z + uMat.w));
     vec2 h = vec2(0.5 * (uMat.y - uMat.x), 0.5 * (uMat.w - uMat.z));
@@ -231,6 +329,7 @@ void main() {
     float edge = smoothstep(-3.0, 0.0, sd) * inside;
     col = mix(col, uMatCol * (1.0 - 0.18 * edge), inside);
     a = max(a, inside * 0.97);
+    matIn = inside; matLine = smoothstep(-1.4, 0.0, sd) * (1.0 - smoothstep(0.0, 1.4, sd));
   }
   float ao = 0.0, sh = 1.0;
   vec3 p = vec3(vW.x, 0.0, vW.z);
@@ -248,6 +347,16 @@ void main() {
     sh *= mix(1.0, s, 0.62 * clamp(1.0 - hgt / 220.0, 0.25, 1.0));
   }
   ao = clamp(ao * 0.55, 0.0, 0.8);
+  if (uHolo == 1) {
+    // near-black glossy floor, a blue pool of light under the figure, the mat as a thin glowing outline
+    vec3 hc = vec3(0.003, 0.008, 0.024) + vec3(0.02, 0.09, 0.42) * exp(-rr * rr * 9.0) * 0.55;
+    hc += vec3(0.008, 0.03, 0.12) * matIn + vec3(0.1, 0.35, 1.0) * matLine * 0.55;
+    hc *= (1.0 - ao * 0.8) * (0.45 + 0.55 * sh);
+    float ha = (1.0 - smoothstep(0.25, 1.0, rr)) * 0.96;
+    hc = pow(max(hc, 0.0), vec3(1.0 / 2.2));
+    frag = vec4(hc * ha, ha);
+    return;
+  }
   col *= (1.0 - ao) * (0.58 + 0.42 * sh);
   a = max(a, (1.0 - sh) * 0.42 + ao * 0.65);
   col = pow(max(col, 0.0), vec3(1.0 / 2.2));
@@ -258,7 +367,7 @@ void main() {
     const mk = (t, s) => { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; };
     const p = gl.createProgram();
     gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
-    gl.bindAttribLocation(p, 0, 'aP'); gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aNor'); gl.bindAttribLocation(p, 2, 'aCol'); gl.bindAttribLocation(p, 3, 'aRel'); gl.bindAttribLocation(p, 4, 'aBI'); gl.bindAttribLocation(p, 5, 'aBW'); gl.bindAttribLocation(p, 6, 'aCl'); gl.bindAttribLocation(p, 7, 'aLm');
+    gl.bindAttribLocation(p, 0, 'aP'); gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aNor'); gl.bindAttribLocation(p, 2, 'aCol'); gl.bindAttribLocation(p, 3, 'aRel'); gl.bindAttribLocation(p, 4, 'aBI'); gl.bindAttribLocation(p, 5, 'aBW'); gl.bindAttribLocation(p, 6, 'aCl'); gl.bindAttribLocation(p, 7, 'aLm'); gl.bindAttribLocation(p, 8, 'aUV');
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
     const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
@@ -405,6 +514,13 @@ void main() {
   function mmul(a, b) { const o = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; o[i * 4 + j] = s; } return o; }
   const colMajor3 = F => [F[0], F[3], F[6], F[1], F[4], F[7], F[2], F[5], F[8]];
 
+  // figure look: 1 studio (default), 0 classic, 2 clean sculpture, 3 hologram; window.OS3_LOOK switches it
+  const LOOK = () => { const v = typeof window !== 'undefined' ? window.OS3_LOOK : undefined; return v === undefined ? 1 : v | 0; };
+  const HAIR_TINT = [1, 1, 1];
+  // working muscles in the hologram light up icy white-blue
+  const HOLO_GLOW = [0.55, 0.85, 1.0];
+  const AO_ON = () => !(typeof window !== 'undefined' && window.OS3_AO === 0);
+
   /* ---------- motion: follow-through and breathing ---------- */
   const LAG = ['hd', 'nk', 'eL', 'eR', 'wL', 'wR'];
   function softMod(pr) {
@@ -462,7 +578,8 @@ void main() {
   /* realistic body (MakeHuman, CC0) baked onto the engine skeleton: same attributes as the built body */
   function glbData(sex) {
     const src = sex === 'm' && typeof window !== 'undefined' && window.OS3H_M;
-    if (!src) return null;
+    // the body comes in four files; without any of the first two the drawn figure stands in
+    if (!src || !src.P || !src.IDX || !src.CL || !src.LM) return null;
     const dec = (b, Tp) => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Tp(u.buffer); };
     const nv = src.nv, f32 = n => new Float32Array(n);
     const P16 = dec(src.P, Int16Array), N8 = dec(src.N, Int8Array), BI8 = dec(src.BI, Uint8Array), BW8 = dec(src.BW, Uint8Array), CL16 = dec(src.CL, Int16Array), LM16 = dec(src.LM, Int16Array), RL8 = dec(src.RL, Int8Array);
@@ -471,7 +588,58 @@ void main() {
     for (let i = 0; i < nv * 4; i++) { BI[i] = BI8[i]; BW[i] = BW8[i] / 255; CL[i] = CL16[i] / 100; LM[i] = LM16[i] / 100; }
     for (let i = 0; i < nv; i++) RL[i] = RL8[i] / 127;
     const IDX = dec(src.IDX, Uint16Array);
-    return { P, N, BI, BW, CL, LM, RL, IDX, nv, nt: IDX.length / 3, glb: src.feat };
+    tankTop(P, CL, nv);
+    smoothRegions(CL, IDX, nv);
+    const uv = a => { const q = dec(a, Uint16Array), o = f32(q.length); for (let i = 0; i < q.length; i++) o[i] = q[i] / 65535; return o; };
+    const UV = src.UV ? uv(src.UV) : f32(nv * 2);
+    // parts drawn with their own texture and skinned to one bone (hair, eyebrows)
+    const parts = (src.parts || []).map(q => {
+      const n = q.nv, p16 = dec(q.P, Int16Array), n8 = dec(q.N, Int8Array);
+      const Pq = f32(n * 3), Nq = f32(n * 3), BIq = f32(n * 4), BWq = f32(n * 4), CLq = f32(n * 4), LMq = f32(n * 4), RLq = f32(n);
+      for (let i = 0; i < n * 3; i++) { Pq[i] = p16[i] / 100; Nq[i] = n8[i] / 127; }
+      for (let i = 0; i < n; i++) { BIq[i * 4] = q.bone; BWq[i * 4] = 1; LMq[i * 4 + 1] = -2; }
+      return { n: q.n, P: Pq, N: Nq, BI: BIq, BW: BWq, CL: CLq, LM: LMq, RL: RLq, UV: uv(q.UV), IDX: dec(q.IDX, Uint16Array), tex: q.tex };
+    });
+    return { P, N, BI, BW, CL, LM, RL, IDX, UV, tex: src.tex || null, parts, nv, nt: IDX.length / 3, glb: src.feat };
+  }
+  // The tank top is cut by clean shapes on the body at rest (male MakeHuman body, centimetres):
+  // round armholes from the shoulder to the armpit, a soft scoop at the neck, the hem at the shorts.
+  function tankTop(P, CL, nv) {
+    const ell = (x, y, z, c, r) => Math.hypot((x - c[0]) / r[0], (y - c[1]) / r[1], (z - c[2]) / r[2]) - 1;
+    for (let v = 0; v < nv; v++) {
+      const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
+      const orig = CL[v * 4];
+      if (y < 100 || y > 156 || Math.abs(x) > 24) continue;
+      const arm = ell(Math.abs(x), y, z, [20.5, 136.5, -0.5], [7.5, 11.5, 11]);
+      // the scoop is deep at the front and shallow at the back
+      const back = Math.min(1, Math.max(0, (2 - z) / 8));
+      const neck = ell(x, y, z, [0, 152.5 + 3 * back, 3.5], [9 + 0.5 * back, 12.5 - 3 * back, 15]);
+      const shoulder = 150.5 - 0.22 * Math.max(0, Math.abs(x) - 5);
+      const top = Math.min(arm * 6, neck * 6, (shoulder - y) / 4, Math.max(orig, (15.5 - Math.abs(x)) / 4));
+      CL[v * 4] = Math.max(-0.5, Math.min(0.5, top));
+    }
+  }
+  // The top, shorts and hair borders are where these per-vertex values cross zero. Raw, they zigzag along the
+  // triangles; a few rounds of averaging with the neighbours turn each border into a clean line.
+  function smoothRegions(CL, IDX, nv) {
+    const nb = Array.from({ length: nv }, () => new Set());
+    for (let i = 0; i < IDX.length; i += 3) {
+      const a = IDX[i], b = IDX[i + 1], c = IDX[i + 2];
+      nb[a].add(b); nb[a].add(c); nb[b].add(a); nb[b].add(c); nb[c].add(a); nb[c].add(b);
+    }
+    const lists = nb.map(s => Array.from(s));
+    const tmp = new Float32Array(nv);
+    [0, 2].forEach(ch => {
+      for (let it = 0; it < 6; it++) {
+        for (let v = 0; v < nv; v++) {
+          const L = lists[v];
+          if (!L.length) { tmp[v] = CL[v * 4 + ch]; continue; }
+          let s = 0; for (let k = 0; k < L.length; k++) s += CL[L[k] * 4 + ch];
+          tmp[v] = CL[v * 4 + ch] * 0.5 + s / L.length * 0.5;
+        }
+        for (let v = 0; v < nv; v++) CL[v * 4 + ch] = tmp[v];
+      }
+    });
   }
   function requestMesh(sex) {
     if (MESH[sex]) return MESH[sex];
@@ -545,6 +713,23 @@ void main() {
     // one-piece body for the current sex, uploaded when the worker has built it
     let SK = null;
     const DQ = new Float32Array(34 * 4);
+    // a texture from a data URL; the frame is redrawn once it is ready
+    function loadTex(url, done) {
+      const img = new Image();
+      img.onload = () => {
+        if (st.dead) return;
+        const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        done(t); kick();
+        if (SK && SK.ready && SK.tex && SK.parts.every(q => q.tex) && opts.onReady) opts.onReady();
+      };
+      img.src = url;
+    }
     function ensureSkin() {
       if (opts.noMesh || !pg.skin) return null;
       const sex = OS3D.BODY.sex;
@@ -554,8 +739,18 @@ void main() {
       if (!e) { SK = { sex, ready: false }; return null; }
       if (!e.ready) { SK = { sex, ready: false }; e.subs.push(() => { if (!st.dead && SK && SK.sex === sex && !SK.ready) { SK = null; kick(); } }); return null; }
       const d = e.data;
-      const v = vao(gl, [[0, 3, d.P], [1, 3, d.N], [4, 4, d.BI], [5, 4, d.BW], [6, 4, d.CL], [7, 4, d.LM], [3, 1, d.RL]], d.IDX);
-      SK = { sex, ready: true, vao: v, n: d.IDX.length, type: d.IDX instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, rest: e.rest, glb: e.glb || null };
+      const attrs = q => [[0, 3, q.P], [1, 3, q.N], [4, 4, q.BI], [5, 4, q.BW], [6, 4, q.CL], [7, 4, q.LM], [3, 1, q.RL]].concat(q.UV ? [[8, 2, q.UV]] : []);
+      const v = vao(gl, attrs(d), d.IDX);
+      SK = { sex, ready: true, vao: v, n: d.IDX.length, type: d.IDX instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, rest: e.rest, glb: e.glb || null, tex: null, parts: [] };
+      const sk = SK;
+      if (d.tex) loadTex(d.tex, t => { sk.tex = t; });
+      // a body without textures (the procedural female body) is ready as soon as it is built
+      else if (!(d.parts || []).length && opts.onReady) setTimeout(() => { if (!st.dead) opts.onReady(); }, 0);
+      (d.parts || []).forEach(q => {
+        const part = { n: q.n, vao: vao(gl, attrs(q), q.IDX), cnt: q.IDX.length, tex: null };
+        sk.parts.push(part);
+        loadTex(q.tex, t => { part.tex = t; });
+      });
       return SK;
     }
     const fq = vao(gl, [[0, 2, new Float32Array([-1, -1, 1, -1, 1, 1, -1, 1])]], new Uint16Array([0, 1, 2, 0, 2, 3]));
@@ -565,14 +760,14 @@ void main() {
     const tv = vao(gl, [[0, 3, TB.P], [1, 3, TB.N], [2, 1, TB.C], [3, 1, TB.R]], torsoIndex(NRW), true);
 
     if (!def.ease && !opts.raw) { const d2 = Object.assign({}, def, { ease: 'cr' }); delete d2._pr; def = d2; }
-    const pr = OS3D.prep(def);
-    const mod = opts.raw ? null : softMod(pr);
+    let pr = OS3D.prep(def);
+    let mod = opts.raw ? null : softMod(pr);
     const st = { yaw: opts.yaw, pitch: opts.pitch, mirror: !!opts.mirror, speed: opts.speed || 1, playing: !opts.paused && !reduceMotion, t: opts.t0 || 0, last: 0, raf: 0, dead: false, glow: !opts.noMuscles, ghost: !!opts.ghost, anat: !!opts.anatomy };
     let P = null;
     const readP = () => { const raw = opts.palette || OS3D.readPalette(canvas); const o = {}; Object.keys(raw).forEach(k => { o[k] = k === 'dark' ? Number(raw[k]) : lin(OS3D.palRGB({ x: raw[k] }).x); }); P = o; };
     readP();
     // animation bounds for framing
-    const bb = (() => {
+    const bounds = () => {
       const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
       const put = q => { for (let i = 0; i < 3; i++) { mn[i] = Math.min(mn[i], q[i]); mx[i] = Math.max(mx[i], q[i]); } };
       for (let i = 0; i <= 24; i++) {
@@ -585,7 +780,8 @@ void main() {
       }
       const c = mul(add(mn, mx), 0.5);
       return { mn, mx, c };
-    })();
+    };
+    let bb = bounds();
     const center = () => { const c = bb.c.slice(); if (st.mirror) c[0] = -c[0]; return c; };
     const cur = k => st[k] !== undefined ? st[k] : (def.cam && def.cam[k] !== undefined ? def.cam[k] : (k === 'yaw' ? 35 : 10));
     function camera(W, H) {
@@ -631,7 +827,9 @@ void main() {
       const L1 = norm(add(add(mul(cam.right, -0.55), mul(cam.up, 0.85)), mul(cam.dir, 0.7)));
       const L2 = norm(add(add(mul(cam.right, 0.7), mul(cam.up, 0.25)), mul(cam.dir, -0.35)));
       const Ls = norm(add(add(mul(cam.right, -0.22), [0, 1, 0]), mul(cam.dir, 0.18)));
-      const dark = P.dark ? 1 : 0;
+      const Lr = norm(add(add(mul(cam.right, 0.6), mul(cam.up, 0.45)), mul(cam.dir, 1.0)));
+      const look = st.anat && LOOK() === 3 ? 1 : LOOK(), holo = look === 3;
+      const dark = P.dark || holo ? 1 : 0;
       const sky = dark ? [0.42, 0.46, 0.5] : [0.92, 0.95, 0.97], ground = dark ? [0.16, 0.15, 0.14] : [0.42, 0.38, 0.35];
       gl.enable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.CULL_FACE);
       // floor with mat, soft shadow and contact occlusion
@@ -653,7 +851,7 @@ void main() {
         occ.slice(0, 30).forEach(p => { const a = X(p.a), b = X(p.b); A.push(a[0], a[1], a[2], 0.5 * (p.ra + p.rb)); B.push(b[0], b[1], b[2], 0); });
         while (A.length < 120) { A.push(0, -999, 0, 0); B.push(0, -999, 0, 0); }
         gl.uniform4fv(g.u.uCA, A); gl.uniform4fv(g.u.uCB, B); gl.uniform1i(g.u.uNC, Math.min(30, occ.length));
-        gl.uniform3fv(g.u.uLs, Ls); gl.uniform1f(g.u.uDark, dark);
+        gl.uniform3fv(g.u.uLs, Ls); gl.uniform1f(g.u.uDark, dark); gl.uniform1i(g.u.uHolo, holo ? 1 : 0);
         gl.depthMask(false);
         gl.bindVertexArray(fq.o); gl.drawElements(gl.TRIANGLES, fq.n, gl.UNSIGNED_SHORT, 0);
         gl.depthMask(true);
@@ -674,23 +872,56 @@ void main() {
         gl.useProgram(g.p);
         gl.uniformMatrix4fv(g.u.uVP, false, cam.VP);
         gl.uniform3fv(g.u.uEye, cam.eye); gl.uniform3fv(g.u.uL1, L1); gl.uniform3fv(g.u.uL2, L2);
-        gl.uniform3fv(g.u.uSky, sky); gl.uniform3fv(g.u.uGround, ground); gl.uniform3fv(g.u.uGlow, P.glow);
+        gl.uniform3fv(g.u.uSky, sky); gl.uniform3fv(g.u.uGround, ground); gl.uniform3fv(g.u.uGlow, holo ? HOLO_GLOW : P.glow);
         gl.uniform1f(g.u.uAlpha, alpha); gl.uniform1f(g.u.uWrap, 0.32);
+        gl.uniform1i(g.u.uLook, look); gl.uniform3fv(g.u.uRim, Lr); gl.uniform1f(g.u.uDarkBg, dark); gl.uniform1i(g.u.uRefl, 0);
+        gl.uniform4fv(g.u.uCapA, CAPA); gl.uniform4fv(g.u.uCapB, CAPB); gl.uniform1i(g.u.uNCap, AO_ON() ? NCAP : 0);
         gl.uniform4fv(g.u.uMus, MU); gl.uniform4fv(g.u.uMusD, MD); gl.uniform4fv(g.u.uMusX, MX); gl.uniform1i(g.u.uNM2, mus.length);
         gl.uniform1f(g.u.uGlowAmt, anat ? 0.6 + 0.4 * (s.a || 0) : 0.35 + 0.65 * (s.a || 0));
         gl.uniform1i(g.u.uAnat, anat ? 1 : 0); gl.uniform3fv(g.u.uHot, AN.hot); gl.uniform3fv(g.u.uTend, AN.ten);
         gl.uniform1f(g.u.uFib, 0); gl.uniform2f(g.u.uTen, 0, 0);
       };
       const skin = ensureSkin();
-      const drawAll = (model0, alpha) => {
+      // body parts as capsules for the soft shadow between them
+      const CAPA = new Float32Array(72), CAPB = new Float32Array(72);
+      let NCAP = 0;
+      const capsOf = sk0 => {
+        const R = OS3D.RAD, L = [[sk0.P0, sk0.L1, 12.5, 12], [sk0.L1, sk0.C7, 12.5, 11.5], [sk0.C7, sk0.HC, 5.4, 5.4], [sk0.HC, sk0.HC, 9.5, 9.5]];
+        ['L', 'R'].forEach(sd => {
+          L.push([sk0['S' + sd], sk0['E' + sd], R.ua[0], R.ua[1]], [sk0['E' + sd], sk0['W' + sd], R.fa[0], R.fa[1]], [sk0['W' + sd], sk0['T' + sd], R.hand[0], R.hand[1]]);
+          L.push([sk0['H' + sd], sk0['K' + sd], R.th[0], R.th[1]], [sk0['K' + sd], sk0['A' + sd], R.sn[0], R.sn[1]], [sk0['Heel' + sd], sk0['Toe' + sd], R.foot[0], R.foot[1]]);
+        });
+        NCAP = 0;
+        L.forEach(([a, b, ra, rb]) => {
+          if (!a || !b || NCAP >= 18) return;
+          const A = X(a), B = X(b), i = NCAP * 4;
+          CAPA[i] = A[0]; CAPA[i + 1] = A[1]; CAPA[i + 2] = A[2]; CAPA[i + 3] = ra * 0.92;
+          CAPB[i] = B[0]; CAPB[i + 1] = B[1]; CAPB[i + 2] = B[2]; CAPB[i + 3] = rb * 0.92;
+          NCAP++;
+        });
+      };
+      // pass: 0 the figure, 1 its reflection in the floor, 2 the glow shell (hologram)
+      const drawAll = (model0, alpha, pass) => {
         const sk0 = model0.sk;
+        capsOf(sk0);
         if (skin) {
           const gsk = pg.skin; setCommon(gsk, alpha);
           boneDQ(sk0, skin.rest, DQ);
           gl.uniform4fv(gsk.u.uDQ, DQ); gl.uniform1f(gsk.u.uMir, mir ? -1 : 1);
+          gl.uniform1f(gsk.u.uRefY, pass === 1 ? -1 : 1); gl.uniform1f(gsk.u.uInfl, pass === 2 ? 2.2 : 0); gl.uniform1i(gsk.u.uRefl, pass || 0);
           gl.uniform3fv(gsk.u.uCol, anat ? AN.mus : P.top); gl.uniform3fv(gsk.u.uCol2, P.bottom); gl.uniform3fv(gsk.u.uSkin, P.skin); gl.uniform3fv(gsk.u.uHair, P.hair);
           gl.uniform1i(gsk.u.uMode, 4); gl.uniform1f(gsk.u.uShine, anat ? 0.14 : 0.1);
+          gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, skin.tex); gl.uniform1i(gsk.u.uTex, 0);
+          gl.uniform1i(gsk.u.uTexOn, skin.tex && !anat ? 1 : 0);
           gl.bindVertexArray(skin.vao.o); gl.drawElements(gl.TRIANGLES, skin.n, skin.type, 0);
+          if (pass) { gl.uniform1f(gsk.u.uRefY, 1); gl.uniform1f(gsk.u.uInfl, 0); gl.uniform1i(gsk.u.uRefl, 0); return; }
+          skin.parts.forEach(pt => {
+            if (!pt.tex) return;
+            gl.bindTexture(gl.TEXTURE_2D, pt.tex); gl.uniform1i(gsk.u.uMode, 5); gl.uniform1i(gsk.u.uTexOn, 1);
+            gl.uniform3fv(gsk.u.uCol, pt.n === 'hair' ? HAIR_TINT : [1, 1, 1]); gl.uniform1f(gsk.u.uShine, pt.n === 'hair' ? 0.06 : 0.02);
+            gl.bindVertexArray(pt.vao.o); gl.drawElements(gl.TRIANGLES, pt.cnt, gl.UNSIGNED_SHORT, 0);
+          });
+          gl.uniform1i(gsk.u.uTexOn, 0);
         }
         // torso
         if (!skin) {
@@ -759,6 +990,7 @@ void main() {
             capDraw(c, c, ey.r * 0.97, ey.r * 0.97, EYE_W, null, 0, 0.45);
             const ic = at(add(ey.c, mul(ey.f, ey.r * 0.8)));
             capDraw(ic, ic, ey.r * 0.42, ey.r * 0.42, EYE_I, null, 0, 0.6);
+            if (skin.parts.some(q => q.n === 'brows' && q.tex)) return;
             const br = fe['brow_' + sd];
             capDraw(at(br[0]), at(br[1]), 0.3, 0.34, P.hair, null, 0, 0.1);
             capDraw(at(br[1]), at(br[2]), 0.34, 0.2, P.hair, null, 0, 0.1);
@@ -815,7 +1047,19 @@ void main() {
         const g0 = OS3D.frameModel(pr, 0, def).model;
         gl.depthMask(false); drawAll(g0, 0.16); gl.depthMask(true);
       }
+      if (holo && skin) {
+        // the figure mirrored in the glossy floor, then a clean depth buffer for the figure itself
+        gl.colorMask(false, false, false, false); drawAll(model, 1, 1);
+        gl.colorMask(true, true, true, true); gl.depthFunc(gl.LEQUAL); drawAll(model, 1, 1); gl.depthFunc(gl.LESS);
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+      }
       drawAll(model, 1);
+      if (holo && skin) {
+        // halo: the far side of a slightly larger copy, hidden behind the body, shows only around the outline
+        gl.depthMask(false);
+        drawAll(model, 1, 2);
+        gl.depthMask(true);
+      }
       gl.bindVertexArray(null);
       return s;
     }
@@ -865,6 +1109,14 @@ void main() {
       get anatomy() { return st.anat; },
       resetView() { st.yaw = opts.yaw; st.pitch = opts.pitch; kick(); },
       setTime(ms) { st.t = ms; kick(); },
+      // one renderer for many still pictures (thumbnails): swap the exercise, set the colours, draw right now
+      setDef(d) {
+        if (!d.ease && !opts.raw) { d = Object.assign({}, d, { ease: 'cr' }); delete d._pr; }
+        def = d; pr = OS3D.prep(def); mod = opts.raw ? null : softMod(pr); bb = bounds();
+      },
+      setPalette(raw) { opts.palette = raw; readP(); },
+      drawNow() { draw(); return canvas; },
+      get ready() { const k = ensureSkin(); return !!(k && (k.tex || !k.glb) && k.parts.every(q => q.tex)); },
       repaint() { readP(); kick(); },
       destroy() {
         st.dead = true; if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0;

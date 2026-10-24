@@ -5,13 +5,14 @@
   const ST = PZ.STAND, SW = PZ.STANDW;
   const HIPS = { HL: { t: [16, 5, -2], rel: 'P', p: [1, 0, -0.8], d: [0, -0.4, 1] }, HR: { t: [-16, 5, -2], rel: 'P', p: [-1, 0, -0.8], d: [0, -0.4, 1] } };
   const PRAY = { HL: { t: [2, -16, 19], rel: 'T', p: [1, -0.7, 0], d: [0, 1, 0.2] }, HR: { t: [-2, -16, 19], rel: 'T', p: [-1, -0.7, 0], d: [0, 1, 0.2] } };
-  const GOBLET = { HL: { t: [4, -15, 20], rel: 'T', p: [1, -1, 0.2], d: [-0.6, 0.6, 0.3] }, HR: { t: [-4, -15, 20], rel: 'T', p: [-1, -1, 0.2], d: [0.6, 0.6, 0.3] } };
+  // goblet hold: palms on the sides of the kettlebell at chest height, elbows down
+  const GOBLET = { HL: { t: [11, -21, 15], rel: 'T', p: [1, -1.2, -0.3], d: [-0.15, 0.85, 0.5] }, HR: { t: [-11, -21, 15], rel: 'T', p: [-1, -1.2, -0.3], d: [0.15, 0.85, 0.5] } };
   const cam3 = { yaw: 35, pitch: 8 }, camSide = { yaw: -70, pitch: 8 };
 
   Object.assign(MOVES, {
     shoulder_circles: {
       cam: { yaw: 25, pitch: 8 }, focus: 'upper', ease: 'cr', m: ['traps', 'delts'],
-      kf: [[0, 0], [2.5, 3.2], [4.6, 0], [2.2, -3.6]].map((s, i) => ({ p: P(S0, { sL: s, sR: s, aL: [2 + s[1] * 2, 9, 0, 0], aR: [2 + s[1] * 2, 9, 0, 0] }), d: 520, a: i === 2 ? 1 : 0.6 }))
+      kf: [[0, 0], [3.6, 4.6], [6.4, 0], [3.2, -5.0]].map((s, i) => ({ p: P(S0, { sL: s, sR: s, aL: [2 + s[1] * 2.4, 9, 0, 0], aR: [2 + s[1] * 2.4, 9, 0, 0] }), d: 650, a: i === 2 ? 1 : 0.6 }))
     },
     trunk_swings: {
       cam: { yaw: 15, pitch: 10 }, ease: 'cr', m: ['obliques'],
@@ -83,8 +84,8 @@
       kf: hold(P(PZ.SQUAT, Object.assign({ aL: null, aR: null }, PRAY)))
     },
     squat: {
-      cam: { yaw: -52, pitch: 8 }, m: ['quads', 'glutes', 'adductors'], props: [{ t: 'kb2h', off: [0, -6, 0] }],
-      kf: rep(P(SW, GOBLET), P(PZ.SQUAT, Object.assign({}, GOBLET, { aL: null, aR: null })), { ab: 2400, ba: 1000, ha: 300, hb: 250 })
+      cam: { yaw: -52, pitch: 8 }, m: ['quads', 'glutes', 'adductors'], props: [{ t: 'kb2h', at: 'palms', off: [0, 0, 1.5], r: 8.5 }],
+      kf: rep(P(SW, GOBLET), P(PZ.SQUAT, Object.assign({}, GOBLET, { aL: null, aR: null, o: [0, 36, 0], sp: [0, 0, 0], ch: [0, 0, 0], nk: [-24, 0, 0] })), { ab: 2400, ba: 1000, ha: 300, hb: 250 })
     },
     hinge: {
       cam: { yaw: -80, pitch: 6 }, m: ['hams', 'glutes', 'erectors'], props: [{ t: 'kb', hand: 'both' }],
@@ -163,7 +164,7 @@
     neck_iso: {
       cam: { yaw: 30, pitch: 4 }, focus: 'upper', m: ['neckFlex', 'neckExt'],
       kf: (() => {
-        const down = (s) => ({ t: [s * 22, -62, 0], rel: 'H', p: [s, -1, -0.5] });
+        const down = (s) => ({ t: [s * 22, -62, 0], rel: 'H', p: [s, -1, -0.5], d: [s * 0.1, -1, 0.15] });
         const front = { HL: { t: [3, 4, 11], rel: 'H', p: [1, -0.6, 0.4], d: [-0.3, 0.4, -0.8] }, HR: { t: [-3, 4, 11], rel: 'H', p: [-1, -0.6, 0.4], d: [0.3, 0.4, -0.8] } };
         const back = { HL: { t: [4, 2, -10], rel: 'H', p: [1, 0.5, 0], d: [-0.6, 0.3, 0.6] }, HR: { t: [-4, 2, -10], rel: 'H', p: [-1, 0.5, 0], d: [0.6, 0.3, 0.6] } };
         const left = { HL: { t: [9.5, 2, 1], rel: 'H', p: [1, -1, 0], d: [0, 1, 0] }, HR: down(-1) };
@@ -178,8 +179,8 @@
     },
     hinge_drill: {
       cam: { yaw: -80, pitch: 6 }, m: ['hams', 'glutes'], props: [{ t: 'stick' }],
-      kf: rep(P(ST, { HR: { t: [-5, 2, -13], rel: 'H', p: [-1, 0.5, 0.5] }, HL: { t: [5, 4, -15], rel: 'P', p: [1, 0, 0.2] } }),
-        P(ST, { r: [0, 93, -15], o: [0, 60, 0], nk: [-14, 0, 0], HR: { t: [-5, 2, -13], rel: 'H', p: [-1, 0.5, 0.5] }, HL: { t: [5, 4, -15], rel: 'P', p: [1, 0, 0.2] } }), { up: 1100, down: 1800 })
+      kf: rep(P(ST, { HR: { t: [-4, -9, -13], rel: 'H', p: [-1, 0.7, 0.1], d: [0.2, 1, -0.2] }, HL: { t: [5, 4, -15], rel: 'P', p: [1, 0, 0.2] } }),
+        P(ST, { r: [0, 93, -15], o: [0, 60, 0], nk: [-14, 0, 0], HR: { t: [-4, -9, -13], rel: 'H', p: [-1, 0.7, 0.1], d: [0.2, 1, -0.2] }, HL: { t: [5, 4, -15], rel: 'P', p: [1, 0, 0.2] } }), { up: 1100, down: 1800 })
     },
     sl_rdl: {
       cam: { yaw: -78, pitch: 6 }, side: true, m: ['hams', 'glutes'], props: [{ t: 'kb', hand: 'R' }],
@@ -240,7 +241,7 @@
         const base = { r: [0, 50, -30], o: [0, 62, 0], nk: [-12, 0, 0], FL: ft(18, 40, { p: [0.5, 0, 1] }), FR: toes(-10, -82, 12, { p: [0, -0.5, 1] }) };
         return [
           { p: P(ST, Object.assign({}, base, { HL: hd(8, 4, 50, { d: [0, -0.1, 1] }), HR: hd(-16, 4, 50, { d: [0, -0.1, 1] }) })), d: 1000, h: 300, a: 0.5 },
-          { p: P(ST, Object.assign({}, base, { HL: hd(10, 30, 36, { p: [1, 0, -0.5] }), HR: hd(-16, 4, 50, { d: [0, -0.1, 1] }) })), d: 900, h: 300, a: 0.8 },
+          { p: P(ST, Object.assign({}, base, { HL: hd(10, 30, 36, { p: [1, 0.2, -0.4], d: [0, -1, 0.25] }), HR: hd(-16, 4, 50, { d: [0, -0.1, 1] }) })), d: 900, h: 300, a: 0.8 },
           { p: P(ST, Object.assign({}, base, { ch: [-4, 0, 52], nk: [0, 0, 30], HL: hd(26, 140, 34, { p: [1, 0, -0.5], d: [0, 1, 0] }), HR: hd(-16, 4, 50, { d: [0, -0.1, 1] }) })), d: 1100, h: 900, a: 1 }
         ];
       })()
