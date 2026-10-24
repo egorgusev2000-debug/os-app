@@ -164,7 +164,8 @@ test('челлендж «Планка 30 дней»: таблица, тайме�
   const errors = collectErrors(page);
   await page.clock.install();
   await page.goto('/');
-  await page.getByText('Пропустить').first().click();
+  // with the test clock the page's animations do not settle, so tap without waiting for them
+  await page.evaluate(() => document.querySelector('[data-act="onb-skip"]').click());
   await tab(page, 'progress');
   await expect(page.locator('.cday')).toHaveCount(30);
   expect(await page.locator('.cday.rest').count()).toBe(4);
