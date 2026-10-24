@@ -167,8 +167,9 @@ test('челлендж «Планка 30 дней»: таблица, тайме�
   // with the test clock the page's animations do not settle, so tap without waiting for them
   await page.evaluate(() => document.querySelector('[data-act="onb-skip"]').click());
   await tab(page, 'progress');
-  await expect(page.locator('.cday')).toHaveCount(30);
-  expect(await page.locator('.cday.rest').count()).toBe(4);
+  await expect(page.locator('.chal')).toHaveCount(2);
+  await expect(page.locator('.chal').first().locator('.cday')).toHaveCount(30);
+  expect(await page.locator('.chal').first().locator('.cday.rest').count()).toBe(4);
   await page.evaluate(() => document.querySelector('[data-act="chal-go"]').click());
   await expect(page.locator('#ch-t')).toBeVisible();
   await page.screenshot({ path: `test-results/shots/${info.project.name}-chal-timer.png` });
@@ -179,7 +180,29 @@ test('челлендж «Планка 30 дней»: таблица, тайме�
   await page.evaluate(() => document.querySelector('#sheet [data-act="close"]').click());
   await expect(page.locator('.cday.done')).toHaveCount(1);
   expect(await overflowX(page)).toBeLessThanOrEqual(0);
-  await page.locator('.chal').scrollIntoViewIfNeeded();
+  await page.locator('.chal').first().scrollIntoViewIfNeeded();
   await page.screenshot({ path: `test-results/shots/${info.project.name}-chal-card.png`, fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test('челлендж «Приседания 30 дней»: повторы и кнопка «Сделал»', async ({ page }, info) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await page.evaluate(() => document.querySelector('[data-act="onb-skip"]').click());
+  await tab(page, 'progress');
+  const card = page.locator('.chal').nth(1);
+  await expect(card.locator('.cday')).toHaveCount(30);
+  await expect(card.locator('[data-act="chal-go"]')).toContainText('15 раз');
+  await card.locator('[data-act="chal-go"]').evaluate(b => b.click());
+  await expect(page.locator('#sheet [data-act="chal-done"]')).toBeVisible();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-squat-sheet.png` });
+  await page.evaluate(() => document.querySelector('#sheet [data-act="chal-done"]').click());
+  await expect(page.getByText('День 1 выполнен')).toBeVisible();
+  await page.evaluate(() => document.querySelector('#sheet [data-act="close"]').click());
+  await expect(card.locator('.cday.done')).toHaveCount(1);
+  await expect(card.locator('.btn[disabled]')).toContainText('Следующий день');
+  expect(await overflowX(page)).toBeLessThanOrEqual(0);
+  await card.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `test-results/shots/${info.project.name}-squat-card.png` });
   expect(errors).toEqual([]);
 });

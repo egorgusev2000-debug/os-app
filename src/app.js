@@ -2247,15 +2247,16 @@ function chalCell(c, i, ps) {
 }
 function chalCard(c) {
   const ps = chalState(c);
-  const dur = s => s >= 60 ? (s % 60 ? Math.floor(s / 60) + ' мин ' + (s % 60) + ' с' : Math.floor(s / 60) + ' мин') : s + ' с';
+  const reps = c.unit === 'reps';
+  const dur = s => reps ? s + ' ' + plural(s, ['раз', 'раза', 'раз']) : s >= 60 ? (s % 60 ? Math.floor(s / 60) + ' мин ' + (s % 60) + ' с' : Math.floor(s / 60) + ' мин') : s + ' с';
   let btn;
   if (ps.finished) btn = `<p class="small muted center">Челлендж пройден. Награда получена.</p>`;
-  else if (ps.canToday) btn = `<button class="btn wide" data-act="chal-go" data-v="${c.id}">${ic('timer')}${ps.started ? 'Начать день ' + (ps.cur + 1) : 'Начать челлендж'} · ${dur(c.days[ps.cur])}</button>`;
-  else btn = `<button class="btn wide" disabled>${ic('timer')}Следующий день — ${dateLong(ps.from)}</button>`;
+  else if (ps.canToday) btn = `<button class="btn wide" data-act="chal-go" data-v="${c.id}">${ic(reps ? 'check' : 'timer')}${ps.started ? 'Начать день ' + (ps.cur + 1) : 'Начать челлендж'} · ${dur(c.days[ps.cur])}</button>`;
+  else btn = `<button class="btn wide" disabled>${ic(reps ? 'check' : 'timer')}Следующий день — ${dateLong(ps.from)}</button>`;
   return `<section class="card chal"><div class="sec-h tight"><h2 class="h3">${esc(c.n)}</h2><span class="small muted num">${ps.cnt} из ${ps.total}</span></div>
     <p class="small muted">${esc(c.sub)}. Дни отдыха в таблице — без упражнения.</p>
     <div class="bar" aria-hidden="true"><i style="width:${Math.round(ps.cnt / ps.total * 100)}%"></i></div>
-    <div class="cgrid" role="list" aria-label="Дни челленджа, секунды">${c.days.map((s, i) => chalCell(c, i, ps)).join('')}</div>
+    <div class="cgrid" role="list" aria-label="Дни челленджа, ${reps ? 'повторы' : 'секунды'}">${c.days.map((s, i) => chalCell(c, i, ps)).join('')}</div>
     ${btn}<button class="linkbtn" data-act="chal-how" data-v="${c.id}">Как делать</button></section>`;
 }
 const CH = { id: '', day: 0, sec: 0, t0: 0, phase: '', iv: 0, last: -1 };
@@ -2272,6 +2273,16 @@ function chalStart(id) {
   const ps = chalState(c);
   if (!ps.canToday) return;
   audioInit();
+  if (c.unit === 'reps') { // повторы: без таймера, день отмечается кнопкой
+    const n = c.days[ps.cur];
+    Object.assign(CH, { id, day: ps.cur + 1, sec: n * 3, phase: 'reps' });
+    openSheet(sheetHead(c.n, `<p class="small muted">День ${CH.day} из ${c.days.length}</p>`) +
+      `<div class="chtimer"><p class="chlbl">Сегодня</p><div class="chbig num">${n}</div><p class="center">${plural(n, ['приседание', 'приседания', 'приседаний'])}</p>
+      <p class="center muted small">В удобном темпе. Можно в несколько подходов с короткой паузой.</p></div>
+      <button class="btn wide" data-act="chal-done" data-v="${id}">${ic('check')}Сделал</button><button class="btn ghost wide" data-act="chal-stop">Отмена</button>`);
+    live('sheet', { destroy: () => { CH.phase = ''; } });
+    return;
+  }
   Object.assign(CH, { id, day: ps.cur + 1, sec: c.days[ps.cur], t0: Date.now(), phase: 'prep', last: -1 });
   openSheet(chalRunHtml(c, true), () => {
     chalStop();
@@ -2318,7 +2329,7 @@ function openChalHow(id) {
   const c = CHALLENGES.find(x => x.id === id);
   if (!c) return;
   openSheet(sheetHead(c.n) + `<div class="blk"><h3>Как делать</h3><p>${esc(c.how)}</p></div>
-    <p class="small muted">Это не замена врача. При болях в спине, шее или плечах сократите время или пропустите день.</p>`);
+    <p class="small muted">Это не замена врача. При болях в спине, коленях, шее или плечах уменьшите нагрузку или пропустите день.</p>`);
 }
 
 /* ---------- doses → player blocks ---------- */
@@ -4082,6 +4093,7 @@ document.addEventListener('click', ev => {
     case 'ach': openAch(v); break;
     case 'chal-go': chalStart(v); break;
     case 'chal-stop': closeSheet(); break;
+    case 'chal-done': { const c = CHALLENGES.find(x => x.id === v); if (c && CH.id === v && CH.phase === 'reps') chalFinish(c); break; }
     case 'chal-how': openChalHow(v); break;
     case 'xpinfo': openXpInfo(); break;
     case 'prefs': UI.prefs = !UI.prefs || b.classList.contains('gearb'); render(); if (UI.prefs) { const el = document.getElementById('prefs'); if (el) el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }); } break;
